@@ -1,56 +1,65 @@
-import { Link } from "@heroui/link";
-import { Snippet } from "@heroui/snippet";
-import { Code } from "@heroui/code";
-import { button as buttonStyles } from "@heroui/theme";
+'use client'
 
-import { siteConfig } from "@/config/site";
-import { title, subtitle } from "@/components/primitives";
-import { GithubIcon } from "@/components/icons";
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { 
+  Upload, 
+  Play, 
+  Pause, 
+  Square, 
+  Settings, 
+  BarChart3, 
+  Globe, 
+  Zap, 
+  Cpu, 
+  Database,
+  FileText,
+  Bot,
+  Layers,
+  Code,
+  Eye,
+  Download,
+  Share2,
+  AlertTriangle,
+  CheckCircle,
+  Clock
+} from 'lucide-react'
+import Header from '@/components/Header'
+import Sidebar from '@/components/Sidebar'
+import DataPanel from '@/components/DataPanel'
+import VisualizationPanel from '@/components/VisualizationPanel'
+import ControlPanel from '@/components/ControlPanel'
+import StatusBar from '@/components/StatusBar'
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [isConnected, setIsConnected] = useState(false)
+  const [currentFile, setCurrentFile] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+
   return (
-    <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-      <div className="inline-block max-w-xl text-center justify-center">
-        <span className={title()}>Make&nbsp;</span>
-        <span className={title({ color: "violet" })}>beautiful&nbsp;</span>
-        <br />
-        <span className={title()}>
-          websites regardless of your design experience.
-        </span>
-        <div className={subtitle({ class: "mt-4" })}>
-          Beautiful, fast and modern React UI library.
+    <div className="flex h-screen bg-dark-bg overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+      />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <Header isConnected={isConnected} currentFile={currentFile} />
+        
+        {/* Main Dashboard - Only Data Analysis */}
+        <div className="flex-1 overflow-hidden">
+          <VisualizationPanel activeTab={activeTab} />
         </div>
+        
+        {/* Status Bar */}
+        <StatusBar isConnected={isConnected} />
       </div>
-
-      <div className="flex gap-3">
-        <Link
-          isExternal
-          className={buttonStyles({
-            color: "primary",
-            radius: "full",
-            variant: "shadow",
-          })}
-          href={siteConfig.links.docs}
-        >
-          Documentation
-        </Link>
-        <Link
-          isExternal
-          className={buttonStyles({ variant: "bordered", radius: "full" })}
-          href={siteConfig.links.github}
-        >
-          <GithubIcon size={20} />
-          GitHub
-        </Link>
-      </div>
-
-      <div className="mt-8">
-        <Snippet hideCopyButton hideSymbol variant="bordered">
-          <span>
-            Get started by editing <Code color="primary">app/page.tsx</Code>
-          </span>
-        </Snippet>
-      </div>
-    </section>
-  );
+    </div>
+  )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Globe, 
@@ -33,9 +33,7 @@ import {
   Columns,
   Square,
   MessageSquare,
-  Search,
-  PanelLeft,
-  PanelTop
+  Search
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
@@ -333,12 +331,127 @@ function DataAnalysisView() {
   const [isPlotDragging, setIsPlotDragging] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
   
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   // Get current active tab
   const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0]
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Set<string>>(new Set())
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+
+  // Search functionality
+  const performSearch = useCallback((query: string) => {
+    if (!query.trim() || !parsedData) {
+      setSearchResults(new Set())
+      return
+    }
+
+    const results = new Set<string>()
+    const lowerQuery = query.toLowerCase()
+
+    Object.entries(parsedData.messages).forEach(([msgName, msgData]: [string, any]) => {
+      // Search in message name
+      if (msgName.toLowerCase().includes(lowerQuery)) {
+        results.add(msgName)
+      }
+
+      // Search in message description
+      const description = msgName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      if (description.toLowerCase().includes(lowerQuery)) {
+        results.add(msgName)
+      }
+
+      // Search in fields
+      if (msgData.fields) {
+        msgData.fields.forEach((field: any) => {
+          if (field.name.toLowerCase().includes(lowerQuery) ||
+              field.description.toLowerCase().includes(lowerQuery) ||
+              field.type.toLowerCase().includes(lowerQuery)) {
+            results.add(msgName)
+          }
+        })
+      }
+    })
+
+    setSearchResults(results)
+  }, [parsedData])
+
+  // Update search when query changes
+  useEffect(() => {
+    performSearch(searchQuery)
+  }, [searchQuery, performSearch])
+
+  // Auto-expand messages that match search
+  useEffect(() => {
+    if (searchQuery.trim() && searchResults.size > 0) {
+      setExpandedMessages(prev => {
+        const newSet = new Set(prev)
+        searchResults.forEach(msgName => {
+          newSet.add(msgName)
+        })
+        return newSet
+      })
+    }
+  }, [searchQuery, searchResults])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        if (searchInputRef.current && !sidebarCollapsed) {
+          searchInputRef.current.focus()
+        }
+      }
+      // Escape to clear search
+      if (e.key === 'Escape' && searchQuery) {
+        setSearchQuery('')
+        if (searchInputRef.current) {
+          searchInputRef.current.blur()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [searchQuery, sidebarCollapsed])
+
+  // Filter messages based on search
+  const filterMessages = useCallback((messages: any) => {
+    if (!searchQuery.trim()) return messages
+
+    const filtered: any = {}
+    Object.entries(messages).forEach(([msgName, msgData]: [string, any]) => {
+      if (searchResults.has(msgName)) {
+        filtered[msgName] = msgData
+      }
+    })
+    return filtered
+  }, [searchQuery, searchResults])
+
+  // Helper function to highlight search terms
+  const highlightSearchTerm = (text: string, query: string) => {
+    if (!query.trim()) return text
+    
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = text.split(regex)
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <span key={index} className="bg-chart-yellow bg-opacity-30 text-chart-yellow font-medium">
+          {part}
+        </span>
+      ) : (
+        <span key={index}>{part}</span>
+      )
+    )
+  }
 
   const addNewTab = () => {
     const newTabId = (tabs.length + 1).toString()
@@ -382,7 +495,7 @@ function DataAnalysisView() {
       title: generatePlotTitle(topics),
       data: plotData,
       layout: {
-        // title: { text: 'Flight Data', font: { color: '#E5E7EB', size: 16 } },
+        title: { text: 'Flight Data', font: { color: '#E5E7EB', size: 16 } },
         xaxis: { 
           title: { text: 'Time', font: { color: '#9CA3AF', size: 12 } }, 
           gridcolor: '#374151', 
@@ -960,8 +1073,9 @@ function DataAnalysisView() {
     }
   }
 
-  // Group uORB messages by commonality
+  // Group uORB messages by commonality with search filtering
   const groupMessages = (messages: any) => {
+    const filteredMessages = filterMessages(messages)
     const groups: any = {
       'Sensors & IMU': [],
       'Position & Navigation': [],
@@ -970,7 +1084,7 @@ function DataAnalysisView() {
       'Other Messages': []
     }
     
-    Object.entries(messages).forEach(([msgName, msgData]: [string, any]) => {
+    Object.entries(filteredMessages).forEach(([msgName, msgData]: [string, any]) => {
       const message = {
         id: msgName,
         name: msgName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -999,43 +1113,7 @@ function DataAnalysisView() {
     return groups
   }
 
-  // Filter messages based on search term
-  const filterMessages = (messages: any, searchTerm: string) => {
-    if (!searchTerm.trim()) return messages
-    
-    const filteredGroups: any = {}
-    
-    Object.entries(messages).forEach(([groupName, groupMessages]: [string, any]) => {
-      const filteredGroupMessages = groupMessages.filter((message: any) => {
-        const searchLower = searchTerm.toLowerCase()
-        
-        // Search in message name
-        if (message.name.toLowerCase().includes(searchLower)) return true
-        
-        // Search in message ID
-        if (message.id.toLowerCase().includes(searchLower)) return true
-        
-        // Search in message description
-        if (message.description.toLowerCase().includes(searchLower)) return true
-        
-        // Search in field names
-        if (message.fields.some((field: any) => field.name.toLowerCase().includes(searchLower))) return true
-        
-        // Search in field descriptions
-        if (message.fields.some((field: any) => field.description.toLowerCase().includes(searchLower))) return true
-        
-        return false
-      })
-      
-      if (filteredGroupMessages.length > 0) {
-        filteredGroups[groupName] = filteredGroupMessages
-      }
-    })
-    
-    return filteredGroups
-  }
-
-  const rawMessageGroups = parsedData ? groupMessages(parsedData.messages) : {
+  const messageGroups = parsedData ? groupMessages(parsedData.messages) : {
     'Sensors & IMU': [
       {
         id: 'sensor_combined',
@@ -1219,46 +1297,6 @@ function DataAnalysisView() {
     ]
   }
 
-  // Apply search filter to message groups
-  const messageGroups = filterMessages(rawMessageGroups, searchTerm)
-
-  // Helper function to generate trajectory plot data
-  const generateTrajectoryPlotData = (topics: string[]) => {
-    const trajectoryData: any[] = []
-    
-    // Check if we have position data
-    const hasPositionData = topics.some(topic => 
-      topic.includes('vehicle_local_position') || 
-      topic.includes('vehicle_global_position')
-    )
-    
-    if (hasPositionData) {
-      // Generate 2D trajectory plot
-      trajectoryData.push({
-        type: 'scatter',
-        mode: 'lines+markers',
-        x: [], // Will be populated with X coordinates
-        y: [], // Will be populated with Y coordinates
-        name: 'Flight Path',
-        line: {
-          color: '#3B82F6',
-          width: 2
-        },
-        marker: {
-          size: 4,
-          color: '#10B981'
-        },
-        hovertemplate: 
-          '<b>Position</b><br>' +
-          'X: %{x:.2f} m<br>' +
-          'Y: %{y:.2f} m<br>' +
-          '<extra></extra>'
-      })
-    }
-    
-    return trajectoryData
-  }
-
   return (
     <div className="h-full w-full bg-dark-bg flex flex-col">
       {/* Tab Bar - Compact and Below Layout Controls */}
@@ -1353,28 +1391,6 @@ function DataAnalysisView() {
           <h2 className="text-dark-text text-lg font-semibold">uORB Messages</h2>
                 </div>
           <p className="text-dark-text-secondary text-sm">Select a message to analyze</p>
-                
-                {/* Search Input */}
-                <div className="mt-3 relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-text-muted" />
-                    <input
-                      type="text"
-                      placeholder="Search topics..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-dark-surface-light border border-dark-border rounded-lg text-sm text-dark-text placeholder-dark-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-colors"
-                    />
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-dark-text-muted hover:text-dark-text transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
               <button
                 className={`p-2 rounded-lg hover:bg-dark-surface-light transition-colors ${
@@ -1393,47 +1409,95 @@ function DataAnalysisView() {
                 )}
               </button>
             </div>
-        </div>
-
-        {/* Message List */}
-          <div className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'hidden' : 'block'}`}>
-          <div className="p-4 space-y-2">
-            {parsedData ? (
-              <>
-                {/* Show search results count if searching */}
-                {searchTerm && (
-                  <div className="mb-3 p-2 bg-dark-surface-light rounded-lg border border-dark-border">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-dark-text-secondary">
-                        Search results for "{searchTerm}"
+            
+            {/* Search Bar */}
+            {!sidebarCollapsed && (
+              <div className="mt-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-text-muted" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search messages, fields, types... (Ctrl+K)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-dark-surface border border-dark-border text-dark-text pl-10 pr-8 py-2 rounded text-sm placeholder-dark-text-muted focus:outline-none focus:ring-1 focus:ring-accent-primary focus:border-accent-primary"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-dark-text-muted hover:text-dark-text transition-colors"
+                      title="Clear search"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {searchQuery && (
+                  <div className="mt-2 text-xs text-dark-text-secondary">
+                    {searchResults.size > 0 ? (
+                      <span className="text-chart-green">
+                        Found {searchResults.size} matching message{searchResults.size !== 1 ? 's' : ''}
                       </span>
-                      <span className="text-accent-primary font-medium">
-                        {Object.values(messageGroups).flat().length} topics found
-                      </span>
-                    </div>
+                    ) : (
+                      <span className="text-hud-red">No messages found</span>
+                    )}
                   </div>
                 )}
                 
-                {/* Show no results message if search returns no matches */}
-                {Object.keys(messageGroups).length === 0 ? (
-                  <div className="text-center py-8">
-                    <Search className="w-12 h-12 text-dark-text-muted mx-auto mb-3" />
-                    <h3 className="text-dark-text font-medium text-sm mb-2">No topics found</h3>
-                    <p className="text-dark-text-secondary text-xs mb-4">
-                      No uORB topics match your search for "{searchTerm}"
-                    </p>
-                    <button 
-                      onClick={() => setSearchTerm('')}
-                      className="btn-secondary text-xs flex items-center justify-center mx-auto"
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      Clear Search
-                    </button>
+                {/* Quick Search Suggestions */}
+                {!searchQuery && parsedData && (
+                  <div className="mt-2">
+                    <div className="text-xs text-dark-text-muted mb-1">Quick search:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {['sensor', 'position', 'battery', 'attitude', 'gps'].map((term) => (
+                        <button
+                          key={term}
+                          onClick={() => setSearchQuery(term)}
+                          className="px-2 py-1 bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text text-xs rounded transition-colors"
+                          title={`Search for ${term}`}
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  /* Show parsed messages */
-                  <div>
-                    {Object.entries(messageGroups).map(([groupName, messages]) => (
+                )}
+              </div>
+            )}
+        </div>
+
+                    {/* Message List */}
+          <div className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'hidden' : 'block'}`}>
+          <div className="p-4 space-y-2">
+            {parsedData ? (
+              // Show parsed messages
+              (() => {
+                const groups = Object.entries(messageGroups)
+                const hasResults = groups.some(([_, messages]) => messages.length > 0)
+                
+                if (searchQuery && !hasResults) {
+                  return (
+                    <div className="text-center py-8">
+                      <Search className="w-12 h-12 text-dark-text-muted mx-auto mb-3" />
+                      <h3 className="text-dark-text font-medium text-sm mb-2">No messages found</h3>
+                      <p className="text-dark-text-secondary text-xs mb-4">
+                        Try searching for different terms or check your spelling
+                      </p>
+                      <div className="bg-dark-surface-light rounded p-3">
+                        <h4 className="text-dark-text font-medium text-xs mb-2">Search suggestions:</h4>
+                        <div className="space-y-1 text-xs text-dark-text-secondary">
+                          <div>• Try "sensor" for sensor data</div>
+                          <div>• Try "position" for location data</div>
+                          <div>• Try "battery" for power data</div>
+                          <div>• Try "float" or "int" for data types</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+                
+                return groups.map(([groupName, messages]) => (
                 <div key={groupName} className="space-y-2">
                   <h3 className="text-dark-text font-medium text-sm text-accent-primary">{groupName}</h3>
                   {messages.map((message: any) => (
@@ -1442,7 +1506,7 @@ function DataAnalysisView() {
                       <div 
                         className={`bg-dark-surface rounded-lg p-3 cursor-pointer hover:bg-dark-surface-light transition-colors ${
                           selectedMessage === message.id ? 'ring-2 ring-accent-primary' : ''
-                        }`}
+                        } ${searchQuery && searchResults.has(message.id) ? 'ring-1 ring-chart-yellow bg-dark-surface-light' : ''}`}
                         onClick={() => {
                           setSelectedMessage(message.id);
                           toggleMessage(message.id);
@@ -1451,7 +1515,9 @@ function DataAnalysisView() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-2">
-                            <h4 className="text-dark-text font-medium text-sm">{message.name}</h4>
+                            <h4 className="text-dark-text font-medium text-sm">
+                              {highlightSearchTerm(message.name, searchQuery)}
+                            </h4>
                             <span className="text-chart-green text-xs">{message.frequency || 'N/A'} Hz</span>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -1495,8 +1561,12 @@ function DataAnalysisView() {
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-2">
-                                    <span className="text-dark-text font-medium text-xs">{field.name}</span>
-                                    <span className="text-accent-primary text-xs font-mono">{field.type}</span>
+                                    <span className="text-dark-text font-medium text-xs">
+                                      {highlightSearchTerm(field.name, searchQuery)}
+                                    </span>
+                                    <span className="text-accent-primary text-xs font-mono">
+                                      {highlightSearchTerm(field.type, searchQuery)}
+                                    </span>
                                     {activeTab.selectedTopics.includes(`${message.id}.${field.name}`) && (
                                       <span className="text-chart-green text-xs">●</span>
                                     )}
@@ -1553,14 +1623,19 @@ function DataAnalysisView() {
                                   return null
                                 })()}
                                 <p className="text-dark-text-secondary text-xs mt-1">
-                                  {field.description.split(/(\s+[a-zA-Z\/²°]+)/).map((part: string, index: number) => {
-                                    // Check if this part is an SI unit (contains /, ², °, or common units)
-                                    const isUnit = /[\/²°]|(m\/s|rad\/s|Gauss|Celsius|degrees|meters|amperes|volts|mAh|minutes|seconds)/.test(part)
-                                    return isUnit ? (
-                                      <span key={index} className="text-chart-yellow font-medium">{part}</span>
-                                    ) : (
-                                      <span key={index}>{part}</span>
-                                    )
+                                  {highlightSearchTerm(field.description, searchQuery).map((part: any, index: number) => {
+                                    if (typeof part === 'string') {
+                                      return part.split(/(\s+[a-zA-Z\/²°]+)/).map((unitPart: string, unitIndex: number) => {
+                                        // Check if this part is an SI unit (contains /, ², °, or common units)
+                                        const isUnit = /[\/²°]|(m\/s|rad\/s|Gauss|Celsius|degrees|meters|amperes|volts|mAh|minutes|seconds)/.test(unitPart)
+                                        return isUnit ? (
+                                          <span key={`${index}-${unitIndex}`} className="text-chart-yellow font-medium">{unitPart}</span>
+                                        ) : (
+                                          <span key={`${index}-${unitIndex}`}>{unitPart}</span>
+                                        )
+                                      })
+                                    }
+                                    return part
                                   })}
                                 </p>
                               </div>
@@ -1571,10 +1646,8 @@ function DataAnalysisView() {
                     </div>
                   ))}
                 </div>
-              ))}
-                  </div>
-                )}
-              </>
+              ))
+            )()
             ) : (
               // No Data State
               <div className="text-center py-8">
@@ -1636,36 +1709,89 @@ function DataAnalysisView() {
                 <Database className="w-4 h-4 mr-2" />
                 Export Data
               </button>
-              <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
-                <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
-                <button
-                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
-                    activeTab.layoutColumns === 2
-                      ? 'bg-accent-primary text-white'
-                      : 'bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text'
-                  }`}
-                  onClick={() => updateTab(activeTabId, { layoutColumns: 2 })}
-                  title="2 column vertical split"
-                >
-                  <Columns className="w-3 h-3" />
-                </button>
-                <button
-                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
-                    activeTab.layoutColumns === -2
-                      ? 'bg-accent-primary text-white'
-                      : 'bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text'
-                  }`}
-                  onClick={() => updateTab(activeTabId, { layoutColumns: -2 })}
-                  title="2 row horizontal split"
-                >
-                  <PanelTop className="w-3 h-3" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
 
-
+        {/* Plot Tools */}
+        <div className="flex-shrink-0 p-3 border-b border-dark-border">
+          <div className="flex items-center space-x-4">
+                         <div className="flex items-center space-x-2">
+               <span className="text-dark-text-secondary text-sm">Plot Type:</span>
+               <select 
+                 className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs"
+                 title="Plot type selector"
+                 aria-label="Select plot type"
+               >
+                 <option>Line Plot</option>
+                 <option>Scatter Plot</option>
+                 <option>Bar Chart</option>
+                 <option>Heatmap</option>
+               </select>
+             </div>
+             <div className="flex items-center space-x-2">
+               <span className="text-dark-text-secondary text-sm">Y-Axis:</span>
+               <select 
+                 className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs"
+                 title="Y-axis selector"
+                 aria-label="Select Y-axis variable"
+               >
+                 <option>Altitude (m)</option>
+                 <option>Speed (m/s)</option>
+                 <option>Battery (%)</option>
+                 <option>Temperature (°C)</option>
+               </select>
+             </div>
+             <div className="flex items-center space-x-2">
+               <span className="text-dark-text-secondary text-sm">X-Axis:</span>
+               <select 
+                 className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs"
+                 title="X-axis selector"
+                 aria-label="Select X-axis variable"
+               >
+                 <option>Time</option>
+                 <option>Distance</option>
+                 <option>Waypoint</option>
+               </select>
+             </div>
+            <div className="flex items-center space-x-2">
+              <button className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs hover:bg-dark-surface-light">
+                <BarChart3 className="w-3 h-3 mr-1" />
+                Zoom
+              </button>
+              <button className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs hover:bg-dark-surface-light">
+                <Eye className="w-3 h-3 mr-1" />
+                Pan
+              </button>
+              <button className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs hover:bg-dark-surface-light">
+                <Download className="w-3 h-3 mr-1" />
+                Save
+              </button>
+            </div>
+            
+            {/* Layout Controls - Furthest Right */}
+            <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
+              <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
+              {[2, 3, 4, 6].map((columns) => (
+                <button
+                  key={columns}
+                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                    activeTab.layoutColumns === columns
+                      ? 'bg-accent-primary text-white'
+                      : 'bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text'
+                  }`}
+                  onClick={() => updateTab(activeTabId, { layoutColumns: columns })}
+                  title={`${columns} column layout`}
+                >
+                  {columns === 2 && <Columns className="w-3 h-3" />}
+                  {columns === 3 && <Grid3X3 className="w-3 h-3" />}
+                  {columns === 4 && <Grid className="w-3 h-3" />}
+                  {columns === 6 && <Square className="w-3 h-3" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* Main Plot Area */}
         <div className="flex-1 p-2">
@@ -1702,25 +1828,23 @@ function DataAnalysisView() {
             }}
           >
             {isParsing ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md">
-                  <Database className="w-16 h-16 text-chart-yellow mx-auto mb-4 animate-pulse" />
-                  <h3 className="text-dark-text text-lg font-semibold mb-2">Parsing ULOG File...</h3>
-                  <div className="bg-dark-surface-light rounded-lg p-4 border border-dark-border mb-4">
-                    <h4 className="text-dark-text font-medium text-sm mb-2">Processing Steps:</h4>
-                    <div className="space-y-2 text-xs text-dark-text-secondary">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-chart-green rounded-full"></div>
-                        <span>Reading file structure</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-chart-yellow rounded-full animate-pulse"></div>
-                        <span>Extracting uORB messages</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-dark-text-muted rounded-full"></div>
-                        <span>Loading flight data</span>
-                      </div>
+              <div className="text-center max-w-md">
+                <Database className="w-16 h-16 text-chart-yellow mx-auto mb-4 animate-pulse" />
+                <h3 className="text-dark-text text-lg font-semibold mb-2">Parsing ULOG File...</h3>
+                <div className="bg-dark-surface-light rounded-lg p-4 border border-dark-border mb-4">
+                  <h4 className="text-dark-text font-medium text-sm mb-2">Processing Steps:</h4>
+                  <div className="space-y-2 text-xs text-dark-text-secondary">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-chart-green rounded-full"></div>
+                      <span>Reading file structure</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-chart-yellow rounded-full animate-pulse"></div>
+                      <span>Extracting uORB messages</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-dark-text-muted rounded-full"></div>
+                      <span>Loading flight data</span>
                     </div>
                   </div>
                 </div>
@@ -1769,8 +1893,9 @@ function DataAnalysisView() {
                       {/* Grid Layout based on selected columns */}
                       <div className={`grid gap-4 ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :
-                        activeTab.layoutColumns === -2 ? 'grid-rows-2' :
-                        'grid-cols-1 lg:grid-cols-2'
+                        activeTab.layoutColumns === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' :
+                        activeTab.layoutColumns === 4 ? 'grid-cols-1 md:grid-cols-2 grid-rows-2' :
+                        activeTab.layoutColumns === 6 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-rows-2' : 'grid-cols-1 lg:grid-cols-2'
                       }`}>
                         
                         {/* Show existing plots or create new plot */}
@@ -1778,10 +1903,11 @@ function DataAnalysisView() {
                           activeTab.plots.map((plot, index) => (
                             <div 
                               key={plot.id}
-                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 min-h-[300px] overflow-hidden ${
+                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-1 min-h-[300px] ${
                                 activeTab.layoutColumns === 2 ? 'col-span-1' :
-                                activeTab.layoutColumns === -2 ? 'row-span-1' :
-                                'col-span-1'
+                                activeTab.layoutColumns === 3 ? 'col-span-1' :
+                                activeTab.layoutColumns === 4 ? 'col-span-1' :
+                                activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
                               }`}
                               onDragOver={(e) => {
                                 e.preventDefault()
@@ -1844,33 +1970,7 @@ function DataAnalysisView() {
                                         ...plot.layout,
                                         width: undefined,
                                         height: undefined,
-                                        autosize: true,
-                                        plot_bgcolor: 'rgba(0,0,0,0)',
-                                        paper_bgcolor: 'rgba(0,0,0,0)',
-                                        font: { color: '#E5E7EB' },
-                                        margin: { l: 60, r: 40, t: 50, b: 80 },
-                                        xaxis: { 
-                                          ...plot.layout.xaxis,
-                                          gridcolor: '#374151',
-                                          color: '#9CA3AF',
-                                          showgrid: true,
-                                          tickfont: { size: 10 },
-                                          title: { 
-                                            ...plot.layout.xaxis?.title,
-                                            font: { color: '#9CA3AF', size: 12 }
-                                          }
-                                        },
-                                        yaxis: { 
-                                          ...plot.layout.yaxis,
-                                          gridcolor: '#374151',
-                                          color: '#9CA3AF',
-                                          showgrid: true,
-                                          tickfont: { size: 10 },
-                                          title: { 
-                                            ...plot.layout.yaxis?.title,
-                                            font: { color: '#9CA3AF', size: 12 }
-                                          }
-                                        }
+                                        autosize: true
                                       }}
                                       config={{
                                         responsive: true,
@@ -1878,7 +1978,7 @@ function DataAnalysisView() {
                                         modeBarButtonsToRemove: ['lasso2d', 'select2d'],
                                         displaylogo: false
                                       }}
-                                      style={{ width: '100%', height: '100%' }}
+                                      style={{ width: '100%', height: 'calc(100% - 30px)' }}
                                       useResizeHandler={true}
                                       onError={() => <PlotFallback data={plot.data} layout={plot.layout} />}
                                     />

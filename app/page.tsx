@@ -50,13 +50,15 @@ export default function Home() {
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <Header 
-          isConnected={isConnected} 
-          currentFile={currentFile} 
-          headerCollapsed={headerCollapsed}
-          onHeaderToggle={() => setHeaderCollapsed(!headerCollapsed)}
-        />
+        {/* Header - Hidden in Data Analysis */}
+        {activeTab !== 'data' && (
+          <Header 
+            isConnected={isConnected} 
+            currentFile={currentFile} 
+            headerCollapsed={headerCollapsed}
+            onHeaderToggle={() => setHeaderCollapsed(!headerCollapsed)}
+          />
+        )}
         
         {/* Main Dashboard - Only Data Analysis */}
         <div className="flex-1 overflow-hidden">
@@ -68,7 +70,7 @@ export default function Home() {
       </div>
       
       {/* Floating Status Indicator - shown when header collapsed */}
-      {headerCollapsed && (
+      {headerCollapsed && activeTab !== 'data' && (
         <div className="fixed top-2 right-4 bg-military-darker border border-military-gray rounded-lg px-3 py-1 text-xs text-military-white shadow-lg z-50">
           <div className="flex items-center space-x-3">
             <span>{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>

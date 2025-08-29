@@ -1618,11 +1618,16 @@ function DataAnalysisView() {
         {/* Plot Header */}
         <div className="flex-shrink-0 p-3 border-b border-dark-border">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center space-x-3">
               <h2 className="text-dark-text text-lg font-semibold">Flight Data Analysis</h2>
+              {uploadedFile && (
+                <span className="bg-chart-green text-white text-xs px-2 py-1 rounded-full font-medium">
+                  {uploadedFile.name}
+                </span>
+              )}
               <p className="text-dark-text-secondary text-sm">Interactive line plot with analysis tools</p>
             </div>
-                         <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3">
               <button className="btn-primary text-sm">
                 <Database className="w-4 h-4 mr-2" />
                 Export Data
@@ -1718,45 +1723,13 @@ function DataAnalysisView() {
               </div>
             ) : uploadedFile && parsedData ? (
               <div className="h-full flex flex-col">
-                {/* Plot Header */}
-                <div className="flex-shrink-0 p-4 border-b border-dark-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h3 className="text-dark-text text-lg font-semibold">Time Series Analysis</h3>
-                      <p className="text-dark-text-secondary text-sm">{uploadedFile.name}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-chart-green text-sm font-medium">
-                        {activeTab.selectedTopics.length} topics selected
-                      </span>
-                      <button 
-                        className="btn-secondary text-xs"
-                        onClick={() => updateTab(activeTabId, { selectedTopics: [] })}
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {activeTab.selectedTopics.length === 0 && (
-                    <div className="bg-dark-surface-light rounded-lg p-3 border border-dark-border">
-                      <div className="flex items-center space-x-2">
-                        <BarChart3Icon className="w-4 h-4 text-chart-yellow" />
-                        <span className="text-dark-text text-sm font-medium">Drag & Drop Topics to Plot</span>
-                      </div>
-                      <p className="text-dark-text-secondary text-xs mt-1">
-                        Drag any field from the left panel to visualize it against time. You can select multiple topics for comparison.
-                      </p>
-                    </div>
-                  )}
-                </div>
 
                 {/* Plot Area */}
-                <div className={`flex-1 p-4 overflow-y-auto transition-all duration-300 ${
+                <div className={`flex-1 p-4 transition-all duration-300 ${
                   sidebarCollapsed ? 'ml-0' : ''
                 } ${headerCollapsed ? 'pt-1' : ''}`}>
                   {activeTab.selectedTopics.length > 0 ? (
-                    <div className="h-full pb-4">
+                    <div className="min-h-full pb-4 overflow-y-auto">
                       {/* Grid Layout based on selected columns */}
                       <div className={`grid gap-4 ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :

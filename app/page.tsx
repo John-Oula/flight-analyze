@@ -66,7 +66,7 @@ export default function Home() {
         </div>
         
         {/* Status Bar */}
-        <StatusBar isConnected={isConnected} />
+        {/* <StatusBar isConnected={isConnected} /> */}
       </div>
       
       {/* Floating Status Indicator - shown when header collapsed */}

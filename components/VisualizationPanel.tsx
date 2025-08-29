@@ -1623,15 +1623,6 @@ function DataAnalysisView() {
               <p className="text-dark-text-secondary text-sm">Interactive line plot with analysis tools</p>
             </div>
                          <div className="flex items-center space-x-3">
-               <select 
-                 className="bg-dark-surface border border-dark-border text-dark-text px-3 py-1 rounded text-sm"
-                 title="Time range selector"
-                 aria-label="Select time range"
-               >
-                 <option>Last 1 hour</option>
-                 <option>Last 6 hours</option>
-                 <option>Last 24 hours</option>
-               </select>
               <button className="btn-primary text-sm">
                 <Database className="w-4 h-4 mr-2" />
                 Export Data
@@ -1988,50 +1979,7 @@ function DataAnalysisView() {
                   )}
                 </div>
 
-                {/* Plot Controls */}
-                {activeTab.selectedTopics.length > 0 && (
-                  <div className="flex-shrink-0 p-4 border-t border-dark-border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-dark-text-secondary text-sm">Time Range:</span>
-                          <select 
-                            className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs"
-                            title="Time range selector"
-                            aria-label="Select time range"
-                          >
-                            <option>Full Flight</option>
-                            <option>Last 30s</option>
-                            <option>Last 1min</option>
-                            <option>Custom...</option>
-                          </select>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-dark-text-secondary text-sm">Plot Type:</span>
-                          <select 
-                            className="bg-dark-surface border border-dark-border text-dark-text px-2 py-1 rounded text-xs"
-                            title="Plot type selector"
-                            aria-label="Select plot type"
-                          >
-                            <option>Line Plot</option>
-                            <option>Scatter Plot</option>
-                            <option>Bar Chart</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button className="btn-secondary text-xs">
-                          <Download className="w-3 h-3 mr-1" />
-                          Export
-                        </button>
-                        <button className="btn-primary text-xs">
-                          <BarChart3Icon className="w-3 h-3 mr-1" />
-                          Analyze
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
               </div>
             ) : uploadedFile ? (
               <>
@@ -2098,58 +2046,7 @@ function DataAnalysisView() {
           </div>
         </div>
 
-        {/* Plot Statistics */}
-        <div className="flex-shrink-0 p-4 border-t border-dark-border">
-          <div className="grid grid-cols-4 gap-4">
-            {parsedData ? (
-              <>
-                <div className="text-center">
-                  <div className="text-chart-blue text-lg font-bold">
-                    {parsedData.fileSize ? `${(parsedData.fileSize / 1024 / 1024).toFixed(1)}MB` : 'N/A'}
-                  </div>
-                  <div className="text-dark-text-secondary text-xs">File Size</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-green text-lg font-bold">
-                    {parsedData.messageCount || 0}
-                  </div>
-                  <div className="text-dark-text-secondary text-xs">Messages</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-yellow text-lg font-bold">
-                    {parsedData.header ? parsedData.header.version : 'N/A'}
-                  </div>
-                  <div className="text-dark-text-secondary text-xs">Version</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-purple text-lg font-bold">
-                    {selectedMessage ? 'Selected' : 'None'}
-                  </div>
-                  <div className="text-dark-text-secondary text-xs">Active Message</div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-center">
-                  <div className="text-chart-blue text-lg font-bold">--</div>
-                  <div className="text-dark-text-secondary text-xs">Max Altitude</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-green text-lg font-bold">--</div>
-                  <div className="text-dark-text-secondary text-xs">Avg Speed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-yellow text-lg font-bold">--</div>
-                  <div className="text-dark-text-secondary text-xs">Battery</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-chart-purple text-lg font-bold">--</div>
-                  <div className="text-dark-text-secondary text-xs">Duration</div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+
       </div>
       </div>
       

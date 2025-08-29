@@ -1752,11 +1752,11 @@ function DataAnalysisView() {
                 </div>
 
                 {/* Plot Area */}
-                <div className={`h-96 p-4 overflow-y-auto transition-all duration-300 ${
+                <div className={`flex-1 p-4 overflow-y-auto transition-all duration-300 ${
                   sidebarCollapsed ? 'ml-0' : ''
                 } ${headerCollapsed ? 'pt-1' : ''}`}>
                   {activeTab.selectedTopics.length > 0 ? (
-                    <div className="min-h-full pb-4">
+                    <div className="h-full pb-4">
                       {/* Grid Layout based on selected columns */}
                       <div className={`grid gap-4 ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :
@@ -1769,7 +1769,7 @@ function DataAnalysisView() {
                           activeTab.plots.map((plot, index) => (
                             <div 
                               key={plot.id}
-                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 min-h-[300px] overflow-hidden ${
+                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 min-h-[400px] overflow-hidden ${
                                 activeTab.layoutColumns === 2 ? 'col-span-1' :
                                 activeTab.layoutColumns === -2 ? 'row-span-1' :
                                 'col-span-1'
@@ -1888,7 +1888,7 @@ function DataAnalysisView() {
                           ))
                         ) : (
                           /* Show main plot if no individual plots exist */
-                          <div className={`min-h-[350px] ${
+                          <div className={`min-h-[500px] ${
                             activeTab.layoutColumns === 2 ? 'col-span-1 lg:col-span-2' :
                             activeTab.layoutColumns === 3 ? 'col-span-1 md:col-span-2 lg:col-span-3' :
                             activeTab.layoutColumns === 4 ? 'col-span-1 md:col-span-2 row-span-2' :
@@ -1937,7 +1937,7 @@ function DataAnalysisView() {
                           activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
                         }`}>
                           <button
-                            className="w-full h-full min-h-[300px] border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
+                            className="w-full min-h-[400px] border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
                             onClick={() => addPlotToTab(activeTabId, activeTab.selectedTopics)}
                             title="Add new plot"
                           >

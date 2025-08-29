@@ -37,35 +37,126 @@ import {
   PanelLeft,
   PanelTop
 } from 'lucide-react'
-import dynamic from 'next/dynamic'
+import {Chip} from "@heroui/chip";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Brush,
+  ReferenceLine
+} from 'recharts';
 
-// Dynamically import Plotly with better error handling
-const Plot = dynamic(
-  () => import('react-plotly.js').then((mod) => mod.default),
-  { 
-    ssr: false,
-    loading: () => <div className="flex items-center justify-center h-64 text-dark-text-secondary">Loading chart...</div>
+// Recharts component for interactive flight data visualization
+const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'];
+  
+  console.log('FlightDataChart data:', data); // Debug log
+  
+  // Transform Plotly data to Recharts format
+  let chartData: any[] = [];
+  
+  if (data && data.length > 0) {
+    // Get the first trace to determine the time points
+    const firstTrace = data[0];
+    if (firstTrace && firstTrace.x && firstTrace.y) {
+      chartData = firstTrace.x.map((x: any, i: number) => {
+        const point: any = { 
+          time: x instanceof Date ? x.getTime() : x,
+          timestamp: x instanceof Date ? x.getTime() : x
+        };
+        
+        // Add all traces to this point
+        data.forEach((trace: any, traceIndex: number) => {
+          if (trace.y && trace.y[i] !== undefined) {
+            point[trace.name] = trace.y[i];
+          }
+        });
+        
+        return point;
+      });
+    }
   }
-)
+  
+  console.log('Transformed chartData:', chartData); // Debug log
 
-// Fallback component for when Plotly fails to load
-const PlotFallback = ({ data, layout }: { data: any[], layout: any }) => {
-  return (
-    <div className="flex items-center justify-center h-full bg-dark-surface-light rounded-lg border border-dark-border">
-      <div className="text-center">
-        <BarChart3Icon className="w-16 h-16 text-dark-text-secondary mx-auto mb-4" />
-        <h3 className="text-dark-text text-lg font-semibold mb-2">Chart Unavailable</h3>
-        <p className="text-dark-text-secondary text-sm mb-4">
-          Unable to load the plotting library. Please refresh the page.
-        </p>
-        <div className="text-left text-xs text-dark-text-secondary">
-          <p>Data points: {data.length}</p>
-          <p>Topics: {data.map((trace: any) => trace.name).join(', ')}</p>
+  // If no data, show a placeholder
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-dark-surface-light rounded-lg border border-dark-border">
+        <div className="text-center">
+          <BarChart3Icon className="w-16 h-16 text-dark-text-secondary mx-auto mb-4" />
+          <h3 className="text-dark-text text-lg font-semibold mb-2">No Data Available</h3>
+          <p className="text-dark-text-secondary text-sm mb-4">
+            {data && data.length > 0 ? 'Data format issue detected' : 'No data provided'}
+          </p>
+          <div className="text-left text-xs text-dark-text-secondary">
+            <p>Data traces: {data?.length || 0}</p>
+            <p>Data points: {chartData?.length || 0}</p>
+          </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis 
+            dataKey="time" 
+            stroke="#9CA3AF"
+            fontSize={10}
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(value) => {
+              if (typeof value === 'number') {
+                const date = new Date(value);
+                return date.toLocaleTimeString();
+              }
+              return value;
+            }}
+          />
+          <YAxis stroke="#9CA3AF" fontSize={10} />
+          <Tooltip 
+            contentStyle={{
+              backgroundColor: '#1F2937',
+              border: '1px solid #374151',
+              borderRadius: '8px',
+              color: '#E5E7EB'
+            }}
+            labelStyle={{ color: '#9CA3AF' }}
+          />
+          <Legend 
+            wrapperStyle={{ color: '#E5E7EB', fontSize: '12px' }}
+          />
+          <Brush 
+            dataKey="time" 
+            height={30} 
+            stroke="#3B82F6"
+            fill="#1F2937"
+          />
+          {data.map((trace: any, index: number) => (
+            <Line
+              key={trace.name}
+              type="monotone"
+              dataKey={trace.name}
+              stroke={colors[index % colors.length]}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, stroke: colors[index % colors.length], strokeWidth: 2 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
-  )
-}
+  );
+};
 
 interface Plot {
   id: string
@@ -1618,13 +1709,15 @@ function DataAnalysisView() {
         {/* Plot Header */}
         <div className="flex-shrink-0 p-3 border-b border-dark-border">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <h2 className="text-dark-text text-lg font-semibold">Flight Data Analysis</h2>
-              {uploadedFile && (
-                <span className="bg-chart-green text-white text-xs px-2 py-1 rounded-full font-medium">
-                  {uploadedFile.name}
-                </span>
-              )}
+                        <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <h2 className="text-dark-text text-lg font-semibold">Flight Data Analysis</h2>
+                                 {uploadedFile && (
+                   <Chip size='sm' color="success" variant="shadow">
+                     {uploadedFile.name}
+                   </Chip>
+                 )}
+              </div>
               <p className="text-dark-text-secondary text-sm">Interactive line plot with analysis tools</p>
             </div>
             <div className="flex items-center space-x-3">
@@ -1731,7 +1824,7 @@ function DataAnalysisView() {
                   {activeTab.selectedTopics.length > 0 ? (
                     <div className="min-h-full pb-4 overflow-y-auto">
                       {/* Grid Layout based on selected columns */}
-                      <div className={`grid gap-4 ${
+                      <div className={`grid gap-4 h-full ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :
                         activeTab.layoutColumns === -2 ? 'grid-rows-2' :
                         'grid-cols-1 lg:grid-cols-2'
@@ -1742,7 +1835,7 @@ function DataAnalysisView() {
                           activeTab.plots.map((plot, index) => (
                             <div 
                               key={plot.id}
-                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 min-h-[400px] overflow-hidden ${
+                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 h-full overflow-hidden flex flex-col ${
                                 activeTab.layoutColumns === 2 ? 'col-span-1' :
                                 activeTab.layoutColumns === -2 ? 'row-span-1' :
                                 'col-span-1'
@@ -1799,54 +1892,9 @@ function DataAnalysisView() {
                                   </div>
                                 </div>
                               )}
-                              <div className="h-full flex-1">
+                              <div className="flex-1 min-h-0">
                                 {plot.data.length > 0 ? (
-                                  <React.Suspense fallback={<PlotFallback data={plot.data} layout={plot.layout} />}>
-                        <Plot
-                                      data={plot.data}
-                          layout={{
-                                        ...plot.layout,
-                                        width: undefined,
-                                        height: undefined,
-                                        autosize: true,
-                                        plot_bgcolor: 'rgba(0,0,0,0)',
-                                        paper_bgcolor: 'rgba(0,0,0,0)',
-                                        font: { color: '#E5E7EB' },
-                                        margin: { l: 60, r: 40, t: 50, b: 80 },
-                                        xaxis: { 
-                                          ...plot.layout.xaxis,
-                                          gridcolor: '#374151',
-                                          color: '#9CA3AF',
-                                          showgrid: true,
-                                          tickfont: { size: 10 },
-                                          title: { 
-                                            ...plot.layout.xaxis?.title,
-                                            font: { color: '#9CA3AF', size: 12 }
-                                          }
-                                        },
-                                        yaxis: { 
-                                          ...plot.layout.yaxis,
-                                          gridcolor: '#374151',
-                                          color: '#9CA3AF',
-                                          showgrid: true,
-                                          tickfont: { size: 10 },
-                                          title: { 
-                                            ...plot.layout.yaxis?.title,
-                                            font: { color: '#9CA3AF', size: 12 }
-                                          }
-                                        }
-                                      }}
-                                      config={{
-                                        responsive: true,
-                                        displayModeBar: true,
-                                        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                                        displaylogo: false
-                                      }}
-                                      style={{ width: '100%', height: '100%' }}
-                                      useResizeHandler={true}
-                                      onError={() => <PlotFallback data={plot.data} layout={plot.layout} />}
-                                    />
-                                  </React.Suspense>
+                                  <FlightDataChart data={plot.data} title={plot.title} />
                                 ) : (
                                   <div className="h-full flex items-center justify-center">
                                     <div className="text-center">
@@ -1861,33 +1909,14 @@ function DataAnalysisView() {
                           ))
                         ) : (
                           /* Show main plot if no individual plots exist */
-                          <div className={`min-h-[500px] ${
+                          <div className={`h-full ${
                             activeTab.layoutColumns === 2 ? 'col-span-1 lg:col-span-2' :
                             activeTab.layoutColumns === 3 ? 'col-span-1 md:col-span-2 lg:col-span-3' :
                             activeTab.layoutColumns === 4 ? 'col-span-1 md:col-span-2 row-span-2' :
                             activeTab.layoutColumns === 6 ? 'col-span-1 md:col-span-2 lg:col-span-3 row-span-2' : 'col-span-1 lg:col-span-2'
                           }`}>
                             {activeTab.plotData.length > 0 ? (
-                              <React.Suspense fallback={<PlotFallback data={activeTab.plotData} layout={activeTab.plotLayout} />}>
-                                <Plot
-                                  data={activeTab.plotData}
-                                  layout={{
-                                    ...activeTab.plotLayout,
-                            width: undefined,
-                            height: undefined,
-                            autosize: true
-                          }}
-                          config={{
-                            responsive: true,
-                            displayModeBar: true,
-                            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
-                            displaylogo: false
-                          }}
-                          style={{ width: '100%', height: '100%' }}
-                          useResizeHandler={true}
-                                  onError={() => <PlotFallback data={activeTab.plotData} layout={activeTab.plotLayout} />}
-                        />
-                      </React.Suspense>
+                              <FlightDataChart data={activeTab.plotData} title="Flight Data Analysis" />
                             ) : (
                               <div className="h-full flex items-center justify-center">
                                 <div className="text-center">
@@ -1903,14 +1932,14 @@ function DataAnalysisView() {
                         )}
                         
                         {/* Add Plot Button */}
-                        <div className={`flex items-center justify-center ${
+                        <div className={`h-full ${
                           activeTab.layoutColumns === 2 ? 'col-span-1' :
                           activeTab.layoutColumns === 3 ? 'col-span-1' :
                           activeTab.layoutColumns === 4 ? 'col-span-1' :
                           activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
                         }`}>
                           <button
-                            className="w-full min-h-[400px] border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
+                            className="w-full h-full border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
                             onClick={() => addPlotToTab(activeTabId, activeTab.selectedTopics)}
                             title="Add new plot"
                           >
@@ -2159,16 +2188,7 @@ function TelemetryView() {
       {/* Right plot */}
       <div className="flex-1 p-4">
         {plotData.length > 0 ? (
-          <React.Suspense fallback={<PlotFallback data={plotData} layout={plotLayout} />}>
-            <Plot 
-              data={plotData} 
-              layout={{ ...plotLayout, autosize: true }} 
-              config={{ responsive: true, displayModeBar: true, displaylogo: false }} 
-              style={{ width: '100%', height: '100%' }} 
-              useResizeHandler={true}
-              onError={() => <PlotFallback data={plotData} layout={plotLayout} />}
-            />
-          </React.Suspense>
+          <FlightDataChart data={plotData} title="Telemetry Data" />
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">

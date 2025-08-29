@@ -36,6 +36,7 @@ export default function Home() {
   const [isConnected, setIsConnected] = useState(false)
   const [currentFile, setCurrentFile] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [headerCollapsed, setHeaderCollapsed] = useState(false)
 
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
@@ -50,7 +51,12 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <Header isConnected={isConnected} currentFile={currentFile} />
+        <Header 
+          isConnected={isConnected} 
+          currentFile={currentFile} 
+          headerCollapsed={headerCollapsed}
+          onHeaderToggle={() => setHeaderCollapsed(!headerCollapsed)}
+        />
         
         {/* Main Dashboard - Only Data Analysis */}
         <div className="flex-1 overflow-hidden">
@@ -60,6 +66,28 @@ export default function Home() {
         {/* Status Bar */}
         <StatusBar isConnected={isConnected} />
       </div>
+      
+      {/* Floating Status Indicator - shown when header collapsed */}
+      {headerCollapsed && (
+        <div className="fixed top-2 right-4 bg-military-darker border border-military-gray rounded-lg px-3 py-1 text-xs text-military-white shadow-lg z-50">
+          <div className="flex items-center space-x-3">
+            <span>{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+            <span>•</span>
+            <span>100%</span>
+            <span>•</span>
+            <span>87%</span>
+            <span>•</span>
+            <span>ACTIVE</span>
+            <span>•</span>
+            <span>{new Date().toLocaleTimeString('en-US', { 
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            })}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

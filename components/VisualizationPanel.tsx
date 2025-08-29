@@ -23,8 +23,16 @@ import {
   Activity,
   Upload,
   ChevronRight,
+  ChevronLeft,
+  ChevronUp,
   ChevronDown,
-  BarChart3 as BarChart3Icon
+  BarChart3 as BarChart3Icon,
+  Plus,
+  X,
+  Grid,
+  Columns,
+  Square,
+  MessageSquare
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
@@ -54,6 +62,25 @@ const PlotFallback = ({ data, layout }: { data: any[], layout: any }) => {
       </div>
     </div>
   )
+}
+
+interface Plot {
+  id: string
+  title: string
+  data: any[]
+  layout: any
+  topics: string[]
+}
+
+interface Tab {
+  id: string
+  name: string
+  selectedTopics: string[]
+  plotData: any[]
+  plotLayout: any
+  timeRange: [number, number]
+  layoutColumns: number
+  plots: Plot[]
 }
 
 interface VisualizationPanelProps {
@@ -286,13 +313,248 @@ function DataAnalysisView() {
   const [isParsing, setIsParsing] = useState(false)
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null)
   
-  // Plot state
-  const [plotData, setPlotData] = useState<any[]>([])
-  const [plotLayout, setPlotLayout] = useState<any>({})
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
-  const [timeRange, setTimeRange] = useState<[number, number]>([0, 100])
+  // Tab system state
+  const [tabs, setTabs] = useState<Tab[]>([
+    {
+      id: '1',
+      name: 'Analysis 1',
+      selectedTopics: [],
+      plotData: [],
+      plotLayout: {},
+      timeRange: [0, 100],
+      layoutColumns: 2,
+      plots: []
+    }
+  ])
+  const [activeTabId, setActiveTabId] = useState<string>('1')
   const [isPlotDragging, setIsPlotDragging] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [headerCollapsed, setHeaderCollapsed] = useState(false)
+  
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Get current active tab
+  const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0]
+
+  const addNewTab = () => {
+    const newTabId = (tabs.length + 1).toString()
+    const newTab: Tab = {
+      id: newTabId,
+      name: `Analysis ${newTabId}`,
+      selectedTopics: [],
+      plotData: [],
+      plotLayout: {},
+      timeRange: [0, 100],
+      layoutColumns: 2,
+      plots: []
+    }
+    setTabs(prev => [...prev, newTab])
+    setActiveTabId(newTabId)
+  }
+
+  const removeTab = (tabId: string) => {
+    if (tabs.length <= 1) return // Don't remove the last tab
+    
+    setTabs(prev => prev.filter(tab => tab.id !== tabId))
+    
+    // If we're removing the active tab, switch to the first available tab
+    if (activeTabId === tabId) {
+      const remainingTabs = tabs.filter(tab => tab.id !== tabId)
+      setActiveTabId(remainingTabs[0] && remainingTabs[0].id || '1')
+    }
+  }
+
+  const updateTab = (tabId: string, updates: Partial<Tab>) => {
+    setTabs(prev => prev.map(tab => 
+      tab.id === tabId ? { ...tab, ...updates } : tab
+    ))
+  }
+
+  const addPlotToTab = (tabId: string, topics: string[]) => {
+    const plotId = Date.now().toString()
+    const plotData = topics.length > 0 ? generatePlotData(topics) : []
+    const newPlot: Plot = {
+      id: plotId,
+      title: generatePlotTitle(topics),
+      data: plotData,
+      layout: {
+        title: { text: 'Flight Data', font: { color: '#E5E7EB', size: 16 } },
+        xaxis: { 
+          title: { text: 'Time', font: { color: '#9CA3AF', size: 12 } }, 
+          gridcolor: '#374151', 
+          color: '#9CA3AF', 
+          showgrid: true,
+          tickfont: { size: 10 }
+        },
+        yaxis: { 
+          title: { text: 'Value', font: { color: '#9CA3AF', size: 12 } }, 
+          gridcolor: '#374151', 
+          color: '#9CA3AF', 
+          showgrid: true,
+          tickfont: { size: 10 }
+        },
+        plot_bgcolor: '#1F2937',
+        paper_bgcolor: '#1F2937',
+        font: { color: '#E5E7EB' },
+        margin: { l: 60, r: 30, t: 60, b: 60 },
+        showlegend: true,
+        legend: { 
+          x: 0.02, 
+          y: 0.98, 
+          bgcolor: 'rgba(31, 41, 55, 0.9)', 
+          bordercolor: '#374151', 
+          borderwidth: 1, 
+          font: { color: '#E5E7EB', size: 10 } 
+        },
+        hovermode: 'closest',
+        dragmode: 'pan'
+      },
+      topics: topics
+    }
+    
+    updateTab(tabId, { 
+      plots: [...tabs.find(t => t.id === tabId)?.plots || [], newPlot]
+    })
+  }
+
+  // Generate data for individual plots
+  const generatePlotData = (topics: string[]) => {
+    if (!parsedData || !parsedData.messages) return []
+
+    const traces: any[] = []
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316']
+
+    topics.forEach((topicId, index) => {
+      const parts = topicId.split('.')
+      const messageId = parts[0]
+      const fieldName = parts[1] || null
+      const componentLabel = parts[2] || null
+      const message = parsedData.messages[messageId]
+      
+      if (message && message.data && message.data.length > 0) {
+        const color = colors[index % colors.length]
+        
+        if (fieldName) {
+          // Plot specific field
+          const xData = message.data.map((sample: any, i: number) => {
+            if (typeof sample.timestampMs === 'number') {
+              return new Date(sample.timestampMs)
+            }
+            return i
+          })
+          const yData = message.data.map((sample: any) => {
+            const value = sample[fieldName]
+            if (Array.isArray(value)) {
+              const idx = getComponentIndex(fieldName, componentLabel || '0', value.length)
+              return typeof value[idx] === 'number' ? value[idx] : 0
+            }
+            return typeof value === 'number' ? value : 0
+          }).filter((v: number) => !isNaN(v))
+
+          if (yData.length > 0) {
+            traces.push({
+              x: xData.slice(0, yData.length),
+              y: yData,
+              type: 'scatter',
+              mode: 'lines',
+              name: componentLabel ? `${messageId}.${fieldName}.${componentLabel}` : `${messageId}.${fieldName}`,
+              line: { color, width: 2 },
+              hovertemplate: 
+                '<b>%{fullData.name}</b><br>' +
+                'Time: %{x:.1f} ms<br>' +
+                'Value: %{y:.4f}<br>' +
+                '<extra></extra>'
+            })
+          }
+        } else {
+          // Plot all numeric fields in the message
+          const sample = message.data[0]
+          if (sample) {
+            Object.keys(sample).forEach((key, fieldIndex) => {
+              if (key !== 'timestampMs' && typeof sample[key] === 'number') {
+                const xData = message.data.map((s: any, i: number) => {
+                  if (typeof s.timestampMs === 'number') {
+                    return new Date(s.timestampMs)
+                  }
+                  return i
+                })
+                const yData = message.data.map((s: any) => typeof s[key] === 'number' ? s[key] : 0)
+                
+                traces.push({
+                  x: xData,
+                  y: yData,
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: `${messageId}.${key}`,
+                  line: { color: colors[(index + fieldIndex) % colors.length], width: 2 },
+                  hovertemplate: 
+                    '<b>%{fullData.name}</b><br>' +
+                    'Time: %{x:.1f} ms<br>' +
+                    'Value: %{y:.4f}<br>' +
+                    '<extra></extra>'
+                })
+              }
+            })
+          }
+        }
+      }
+    })
+
+    return traces
+  }
+
+  // Add topic to specific plot
+  const addTopicToPlot = (plotId: string, topicId: string) => {
+    const tab = tabs.find(t => t.id === activeTabId)
+    if (!tab) return
+
+    const plot = tab.plots.find(p => p.id === plotId)
+    if (!plot) return
+
+    // Don't add if already exists
+    if (plot.topics.includes(topicId)) return
+
+    const updatedTopics = [...plot.topics, topicId]
+    const updatedPlot = { 
+      ...plot, 
+      topics: updatedTopics, 
+      data: generatePlotData(updatedTopics),
+      title: generatePlotTitle(updatedTopics)
+    }
+    
+    const updatedPlots = tab.plots.map(p => p.id === plotId ? updatedPlot : p)
+    updateTab(activeTabId, { plots: updatedPlots })
+  }
+
+  // Remove topic from specific plot
+  const removeTopicFromPlot = (plotId: string, topicId: string) => {
+    const tab = tabs.find(t => t.id === activeTabId)
+    if (!tab) return
+
+    const plot = tab.plots.find(p => p.id === plotId)
+    if (!plot) return
+
+    const updatedTopics = plot.topics.filter(t => t !== topicId)
+    const updatedPlot = { 
+      ...plot, 
+      topics: updatedTopics, 
+      data: generatePlotData(updatedTopics),
+      title: generatePlotTitle(updatedTopics)
+    }
+    
+    const updatedPlots = tab.plots.map(p => p.id === plotId ? updatedPlot : p)
+    updateTab(activeTabId, { plots: updatedPlots })
+  }
+
+  // Generate plot title based on topics
+  const generatePlotTitle = (topics: string[]) => {
+    if (topics.length === 0) return 'New Plot'
+    if (topics.length === 1) {
+      const parts = topics[0].split('.')
+      return parts.length > 1 ? parts[1] : parts[0]
+    }
+    return `${topics.length} Topics`
+  }
 
   const toggleMessage = (messageId: string) => {
     setExpandedMessages(prev => {
@@ -342,11 +604,11 @@ function DataAnalysisView() {
       ? (componentLabel ? `${topicOrMessageId}.${fieldName}.${componentLabel}` : `${topicOrMessageId}.${fieldName}`)
       : topicOrMessageId
 
-    setSelectedTopics(prev => (
-      prev.includes(fullTopicId)
-        ? prev.filter(t => t !== fullTopicId)
-        : [...prev, fullTopicId]
-    ))
+    const newSelectedTopics = activeTab.selectedTopics.includes(fullTopicId)
+      ? activeTab.selectedTopics.filter(t => t !== fullTopicId)
+      : [...activeTab.selectedTopics, fullTopicId]
+
+    updateTab(activeTabId, { selectedTopics: newSelectedTopics })
   }
 
   // Generate time-series data for plotting
@@ -356,11 +618,11 @@ function DataAnalysisView() {
     const traces: any[] = []
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316']
 
-    selectedTopics.forEach((topicId, index) => {
+    activeTab.selectedTopics.forEach((topicId, index) => {
       const parts = topicId.split('.')
       const messageId = parts[0]
-      const fieldName = parts[1] ?? null
-      const componentLabel = parts[2] ?? null
+      const fieldName = parts[1] || null
+      const componentLabel = parts[2] || null
       const message = parsedData.messages[messageId]
       
       if (message && message.data && message.data.length > 0) {
@@ -378,7 +640,7 @@ function DataAnalysisView() {
           const yData = message.data.map((sample: any) => {
             const value = sample[fieldName]
             if (Array.isArray(value)) {
-              const idx = getComponentIndex(fieldName, componentLabel ?? '0', value.length)
+              const idx = getComponentIndex(fieldName, componentLabel || '0', value.length)
               return typeof value[idx] === 'number' ? value[idx] : 0
             }
             return typeof value === 'number' ? value : 0
@@ -400,28 +662,35 @@ function DataAnalysisView() {
             })
           }
         } else {
-          // Plot message count over time
-          const xData = message.data.map((sample: any, i: number) => {
-            if (typeof sample.timestampMs === 'number') {
-              return new Date(sample.timestampMs)
+          // Plot all numeric fields in the message
+          const sample = message.data[0]
+          if (sample) {
+            Object.keys(sample).forEach((key, fieldIndex) => {
+              if (key !== 'timestampMs' && typeof sample[key] === 'number') {
+                const xData = message.data.map((s: any, i: number) => {
+                  if (typeof s.timestampMs === 'number') {
+                    return new Date(s.timestampMs)
             }
             return i
           })
-          const yData = message.data.map((_: any, i: number) => i + 1)
+                const yData = message.data.map((s: any) => typeof s[key] === 'number' ? s[key] : 0)
 
           traces.push({
             x: xData,
             y: yData,
             type: 'scatter',
             mode: 'lines',
-            name: `${messageId} (count)`,
-            line: { color, width: 2, dash: 'dot' },
+                  name: `${messageId}.${key}`,
+                  line: { color: colors[(index + fieldIndex) % colors.length], width: 2 },
             hovertemplate: 
               '<b>%{fullData.name}</b><br>' +
               'Time: %{x:.1f} ms<br>' +
-              'Message #: %{y}<br>' +
+                    'Value: %{y:.4f}<br>' +
               '<extra></extra>'
           })
+              }
+            })
+          }
         }
       }
     })
@@ -429,57 +698,61 @@ function DataAnalysisView() {
     return traces
   }
 
-  // Update plot when selected topics change
+    // Update plot data when selected topics change
   useEffect(() => {
-    if (parsedData && selectedTopics.length > 0) {
+    if (parsedData && activeTab.selectedTopics.length > 0) {
       const traces = generateTimeSeriesData()
-      setPlotData(traces)
-      
-      // Update layout
-      setPlotLayout({
-        title: {
-          text: 'Flight Data Time Series',
-          font: { color: '#E5E7EB', size: 18 }
-        },
+      const layout = {
+        title: { text: 'Flight Data Analysis', font: { color: '#E5E7EB', size: 20 } },
         xaxis: {
-          title: { text: 'Time', font: { color: '#9CA3AF' } },
+          title: { text: 'Time', font: { color: '#9CA3AF', size: 14 } }, 
           gridcolor: '#374151',
           color: '#9CA3AF',
           showgrid: true,
+          type: 'date',
           tickformat: '%H:%M:%S',
-          type: 'date'
+          tickfont: { size: 12 }
         },
         yaxis: {
-          title: { text: 'Value', font: { color: '#9CA3AF' } },
+          title: { text: 'Value', font: { color: '#9CA3AF', size: 14 } }, 
           gridcolor: '#374151',
           color: '#9CA3AF',
-          showgrid: true
+          showgrid: true,
+          tickfont: { size: 12 }
         },
         plot_bgcolor: '#1F2937',
         paper_bgcolor: '#1F2937',
         font: { color: '#E5E7EB' },
-        margin: { l: 60, r: 30, t: 60, b: 60 },
+        margin: { l: 80, r: 40, t: 80, b: 80 },
         showlegend: true,
         legend: {
           x: 0.02,
           y: 0.98,
-          bgcolor: 'rgba(31, 41, 55, 0.8)',
+          bgcolor: 'rgba(31, 41, 55, 0.9)', 
           bordercolor: '#374151',
           borderwidth: 1,
-          font: { color: '#E5E7EB' }
+          font: { color: '#E5E7EB', size: 12 } 
         },
         hovermode: 'closest',
-        dragmode: 'pan',
-        modebar: {
-          bgcolor: '#1F2937',
-          color: '#9CA3AF',
-          activecolor: '#3B82F6'
-        }
-      })
+        dragmode: 'pan'
+      }
+      
+      updateTab(activeTabId, { plotData: traces, plotLayout: layout })
     } else {
-      setPlotData([])
+      updateTab(activeTabId, { plotData: [], plotLayout: {} })
     }
-  }, [selectedTopics, parsedData])
+  }, [activeTab.selectedTopics, parsedData, activeTabId])
+
+  // Update individual plot data when parsed data changes
+  useEffect(() => {
+    if (parsedData && activeTab.plots.length > 0) {
+      const updatedPlots = activeTab.plots.map(plot => ({
+        ...plot,
+        data: generatePlotData(plot.topics)
+      }))
+      updateTab(activeTabId, { plots: updatedPlots })
+    }
+  }, [parsedData, activeTabId])
 
   const handleFileDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -907,20 +1180,121 @@ function DataAnalysisView() {
   }
 
   return (
-    <div className="h-full w-full bg-dark-bg flex">
+    <div className="h-full w-full bg-dark-bg flex flex-col">
+      {/* Tab Bar - Compact and Below Layout Controls */}
+      <div className={`flex-shrink-0 bg-dark-surface border-b border-dark-border transition-all duration-300 ${
+        headerCollapsed ? 'h-6' : 'h-auto'
+      }`}>
+        <div className="flex items-center px-4 py-1">
+          {/* Left side - Tabs */}
+          <div className="flex items-center space-x-1 flex-1 overflow-x-auto">
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-t-lg cursor-pointer transition-colors ${
+                  activeTabId === tab.id
+                    ? 'bg-dark-bg text-dark-text border-b-2 border-accent-primary'
+                    : 'bg-dark-surface-light text-dark-text-secondary hover:bg-dark-surface hover:text-dark-text'
+                }`}
+                onClick={() => setActiveTabId(tab.id)}
+              >
+                <span className="text-xs font-medium whitespace-nowrap">{tab.name}</span>
+                {tabs.length > 1 && (
+                  <button
+                    className="text-dark-text-muted hover:text-dark-text transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeTab(tab.id)
+                    }}
+                    title="Close tab"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {/* Right side - Controls */}
+          <div className="flex items-center space-x-1 ml-2">
+            {/* Add Tab Button */}
+            <button
+              className={`flex items-center justify-center w-6 h-6 rounded bg-dark-surface-light hover:bg-dark-surface transition-colors text-dark-text-secondary hover:text-dark-text transition-all duration-300 ${
+                headerCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+              onClick={addNewTab}
+              title="Add new analysis tab"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+            
+            {/* Header Toggle Button */}
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded bg-dark-surface-light hover:bg-dark-surface transition-colors text-dark-text-secondary hover:text-dark-text"
+              onClick={() => setHeaderCollapsed(!headerCollapsed)}
+              title={headerCollapsed ? 'Show header' : 'Hide header'}
+            >
+              {headerCollapsed ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronUp className="w-3 h-3" />
+              )}
+            </button>
+          </div>
+          
+          {/* Compact Status Info - shown when header collapsed */}
+          <div className={`flex items-center space-x-2 ml-2 text-xs text-dark-text-secondary transition-all duration-300 ${
+            headerCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}>
+            <span>DISCONNECTED</span>
+            <span>100%</span>
+            <span>87%</span>
+            <span>ACTIVE</span>
+            <span>{new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+      </div>
+
+              {/* Main Content */}
+        <div className="flex flex-1 overflow-hidden">
       {/* Left Side - Message List */}
       <div 
-        className="flex flex-col border-r border-dark-border"
-        style={{ width: `${sidebarWidth}px` }}
+            className={`flex flex-col border-r border-dark-border transition-all duration-300 ${
+              sidebarCollapsed ? 'w-12' : ''
+            }`}
+            style={{ width: sidebarCollapsed ? '48px' : `${sidebarWidth}px` }}
       >
         {/* Header */}
         <div className="flex-shrink-0 p-4 border-b border-dark-border">
+            <div className="flex items-center justify-between">
+              <div className={sidebarCollapsed ? 'hidden' : 'block'}>
+                <div className="flex items-center space-x-2 mb-1">
+                  <MessageSquare className="w-5 h-5 text-accent-primary" />
           <h2 className="text-dark-text text-lg font-semibold">uORB Messages</h2>
+                </div>
           <p className="text-dark-text-secondary text-sm">Select a message to analyze</p>
+              </div>
+              <button
+                className={`p-2 rounded-lg hover:bg-dark-surface-light transition-colors ${
+                  sidebarCollapsed ? 'w-full' : ''
+                }`}
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? (
+                  <div className="flex flex-col items-center space-y-1">
+                    <MessageSquare className="w-4 h-4 text-accent-primary" />
+                    <ChevronRight className="w-3 h-3 text-dark-text-secondary" />
+                  </div>
+                ) : (
+                  <ChevronLeft className="w-4 h-4 text-dark-text-secondary" />
+                )}
+              </button>
+            </div>
         </div>
 
         {/* Message List */}
-        <div className="flex-1 overflow-y-auto">
+          <div className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'hidden' : 'block'}`}>
           <div className="p-4 space-y-2">
             {parsedData ? (
               // Show parsed messages
@@ -974,7 +1348,7 @@ function DataAnalysisView() {
                               <div 
                                 key={fieldIndex} 
                                 className={`bg-dark-surface-light rounded p-2 cursor-grab hover:bg-dark-surface transition-colors border-l-2 border-accent-primary ${
-                                  selectedTopics.includes(`${message.id}.${field.name}`) ? 'ring-2 ring-chart-green' : ''
+                                  activeTab.selectedTopics.includes(`${message.id}.${field.name}`) ? 'ring-2 ring-chart-green' : ''
                                 }`}
                                 draggable
                                 onDragStart={(e) => {
@@ -988,7 +1362,7 @@ function DataAnalysisView() {
                                   <div className="flex items-center space-x-2">
                                     <span className="text-dark-text font-medium text-xs">{field.name}</span>
                                     <span className="text-accent-primary text-xs font-mono">{field.type}</span>
-                                    {selectedTopics.includes(`${message.id}.${field.name}`) && (
+                                    {activeTab.selectedTopics.includes(`${message.id}.${field.name}`) && (
                                       <span className="text-chart-green text-xs">●</span>
                                     )}
                                   </div>
@@ -1018,7 +1392,7 @@ function DataAnalysisView() {
                                       <div className="mt-2 flex flex-wrap gap-2">
                                         {labels.map((label, i) => {
                                           const topicId = `${message.id}.${field.name}.${label}`
-                                          const isSelected = selectedTopics.includes(topicId)
+                                          const isSelected = activeTab.selectedTopics.includes(topicId)
                                           return (
                                             <div
                                               key={`${field.name}-${label}`}
@@ -1183,6 +1557,28 @@ function DataAnalysisView() {
                 Save
               </button>
             </div>
+            
+            {/* Layout Controls - Furthest Right */}
+            <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
+              <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
+              {[2, 3, 4, 6].map((columns) => (
+                <button
+                  key={columns}
+                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                    activeTab.layoutColumns === columns
+                      ? 'bg-accent-primary text-white'
+                      : 'bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text'
+                  }`}
+                  onClick={() => updateTab(activeTabId, { layoutColumns: columns })}
+                  title={`${columns} column layout`}
+                >
+                  {columns === 2 && <Columns className="w-3 h-3" />}
+                  {columns === 3 && <Grid3X3 className="w-3 h-3" />}
+                  {columns === 4 && <Grid className="w-3 h-3" />}
+                  {columns === 6 && <Square className="w-3 h-3" />}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1253,18 +1649,18 @@ function DataAnalysisView() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-chart-green text-sm font-medium">
-                        {selectedTopics.length} topics selected
+                        {activeTab.selectedTopics.length} topics selected
                       </span>
                       <button 
                         className="btn-secondary text-xs"
-                        onClick={() => setSelectedTopics([])}
+                        onClick={() => updateTab(activeTabId, { selectedTopics: [] })}
                       >
                         Clear All
                       </button>
                     </div>
                   </div>
                   
-                  {selectedTopics.length === 0 && (
+                  {activeTab.selectedTopics.length === 0 && (
                     <div className="bg-dark-surface-light rounded-lg p-3 border border-dark-border">
                       <div className="flex items-center space-x-2">
                         <BarChart3Icon className="w-4 h-4 text-chart-yellow" />
@@ -1278,14 +1674,130 @@ function DataAnalysisView() {
                 </div>
 
                 {/* Plot Area */}
-                <div className="flex-1 p-4">
-                  {selectedTopics.length > 0 && plotData.length > 0 ? (
+                <div className={`flex-1 p-4 overflow-auto transition-all duration-300 ${
+                  sidebarCollapsed ? 'ml-0' : ''
+                } ${headerCollapsed ? 'pt-1' : ''}`}>
+                  {activeTab.selectedTopics.length > 0 ? (
                     <div className="h-full">
-                      <React.Suspense fallback={<PlotFallback data={plotData} layout={plotLayout} />}>
+                      {/* Grid Layout based on selected columns */}
+                      <div className={`grid gap-4 ${
+                        activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :
+                        activeTab.layoutColumns === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' :
+                        activeTab.layoutColumns === 4 ? 'grid-cols-1 md:grid-cols-2 grid-rows-2' :
+                        activeTab.layoutColumns === 6 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-rows-2' : 'grid-cols-1 lg:grid-cols-2'
+                      }`}>
+                        
+                        {/* Show existing plots or create new plot */}
+                        {activeTab.plots.length > 0 ? (
+                          activeTab.plots.map((plot, index) => (
+                            <div 
+                              key={plot.id}
+                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-1 min-h-[300px] ${
+                                activeTab.layoutColumns === 2 ? 'col-span-1' :
+                                activeTab.layoutColumns === 3 ? 'col-span-1' :
+                                activeTab.layoutColumns === 4 ? 'col-span-1' :
+                                activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
+                              }`}
+                              onDragOver={(e) => {
+                                e.preventDefault()
+                                e.currentTarget.classList.add('border-accent-primary', 'bg-dark-surface')
+                              }}
+                              onDragLeave={(e) => {
+                                e.currentTarget.classList.remove('border-accent-primary', 'bg-dark-surface')
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.currentTarget.classList.remove('border-accent-primary', 'bg-dark-surface')
+                                
+                                if (e.dataTransfer.types.includes('text/plain')) {
+                                  const topicId = e.dataTransfer.getData('text/plain')
+                                  addTopicToPlot(plot.id, topicId)
+                                }
+                              }}
+                            >
+                              <div className="flex items-center justify-end mb-1">
+                                <button
+                                  className="text-dark-text-muted hover:text-dark-text transition-colors p-1 rounded"
+                                  onClick={() => {
+                                    const updatedPlots = activeTab.plots.filter(p => p.id !== plot.id)
+                                    updateTab(activeTabId, { plots: updatedPlots })
+                                  }}
+                                  title="Remove plot"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              
+                              {/* Topic list - compact */}
+                              {plot.topics.length > 0 && (
+                                <div className="mb-1">
+                                  <div className="flex flex-wrap gap-1">
+                                    {plot.topics.map((topic, topicIndex) => (
+                                      <div
+                                        key={topicIndex}
+                                        className="flex items-center space-x-1 bg-dark-surface rounded px-1 py-0.5 text-xs"
+                                      >
+                                        <span className="text-dark-text-secondary">{topic.split('.').pop()}</span>
+                                        <button
+                                          className="text-dark-text-muted hover:text-dark-text transition-colors"
+                                          onClick={() => removeTopicFromPlot(plot.id, topic)}
+                                          title={`Remove ${topic}`}
+                                        >
+                                          <X className="w-2 h-2" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="h-full flex-1">
+                                {plot.data.length > 0 ? (
+                                  <React.Suspense fallback={<PlotFallback data={plot.data} layout={plot.layout} />}>
                         <Plot
-                          data={plotData}
+                                      data={plot.data}
                           layout={{
-                            ...plotLayout,
+                                        ...plot.layout,
+                                        width: undefined,
+                                        height: undefined,
+                                        autosize: true
+                                      }}
+                                      config={{
+                                        responsive: true,
+                                        displayModeBar: true,
+                                        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                                        displaylogo: false
+                                      }}
+                                      style={{ width: '100%', height: 'calc(100% - 30px)' }}
+                                      useResizeHandler={true}
+                                      onError={() => <PlotFallback data={plot.data} layout={plot.layout} />}
+                                    />
+                                  </React.Suspense>
+                                ) : (
+                                  <div className="h-full flex items-center justify-center">
+                                    <div className="text-center">
+                                      <BarChart3Icon className="w-8 h-8 text-dark-text-secondary mx-auto mb-2" />
+                                      <p className="text-dark-text-secondary text-xs mb-2">No data</p>
+                                      <p className="text-dark-text-muted text-xs">Drag topics here to add data</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          /* Show main plot if no individual plots exist */
+                          <div className={`min-h-[350px] ${
+                            activeTab.layoutColumns === 2 ? 'col-span-1 lg:col-span-2' :
+                            activeTab.layoutColumns === 3 ? 'col-span-1 md:col-span-2 lg:col-span-3' :
+                            activeTab.layoutColumns === 4 ? 'col-span-1 md:col-span-2 row-span-2' :
+                            activeTab.layoutColumns === 6 ? 'col-span-1 md:col-span-2 lg:col-span-3 row-span-2' : 'col-span-1 lg:col-span-2'
+                          }`}>
+                            {activeTab.plotData.length > 0 ? (
+                              <React.Suspense fallback={<PlotFallback data={activeTab.plotData} layout={activeTab.plotLayout} />}>
+                                <Plot
+                                  data={activeTab.plotData}
+                                  layout={{
+                                    ...activeTab.plotLayout,
                             width: undefined,
                             height: undefined,
                             autosize: true
@@ -1298,9 +1810,40 @@ function DataAnalysisView() {
                           }}
                           style={{ width: '100%', height: '100%' }}
                           useResizeHandler={true}
-                          onError={() => <PlotFallback data={plotData} layout={plotLayout} />}
+                                  onError={() => <PlotFallback data={activeTab.plotData} layout={activeTab.plotLayout} />}
                         />
                       </React.Suspense>
+                            ) : (
+                              <div className="h-full flex items-center justify-center">
+                                <div className="text-center">
+                                  <BarChart3Icon className="w-16 h-16 text-chart-yellow mx-auto mb-4" />
+                                  <h3 className="text-dark-text text-lg font-semibold mb-2">Ready to Plot</h3>
+                                  <p className="text-dark-text-secondary text-sm mb-4 max-w-md">
+                                    Select topics from the left panel to start visualizing your flight data.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Add Plot Button */}
+                        <div className={`flex items-center justify-center ${
+                          activeTab.layoutColumns === 2 ? 'col-span-1' :
+                          activeTab.layoutColumns === 3 ? 'col-span-1' :
+                          activeTab.layoutColumns === 4 ? 'col-span-1' :
+                          activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
+                        }`}>
+                          <button
+                            className="w-full h-full min-h-[300px] border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
+                            onClick={() => addPlotToTab(activeTabId, activeTab.selectedTopics)}
+                            title="Add new plot"
+                          >
+                            <Plus className="w-8 h-8 mb-2" />
+                            <span className="text-sm font-medium">Add Plot</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className={`h-full flex items-center justify-center transition-colors ${
@@ -1335,7 +1878,7 @@ function DataAnalysisView() {
                 </div>
 
                 {/* Plot Controls */}
-                {selectedTopics.length > 0 && (
+                {activeTab.selectedTopics.length > 0 && (
                   <div className="flex-shrink-0 p-4 border-t border-dark-border">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -1497,6 +2040,24 @@ function DataAnalysisView() {
           </div>
         </div>
       </div>
+      </div>
+      
+      {/* Floating Status Indicator - shown when header collapsed */}
+      {headerCollapsed && (
+        <div className="fixed top-2 right-4 bg-dark-surface-light border border-dark-border rounded-lg px-3 py-1 text-xs text-dark-text-secondary shadow-lg z-50">
+          <div className="flex items-center space-x-3">
+            <span>DISCONNECTED</span>
+            <span>•</span>
+            <span>100%</span>
+            <span>•</span>
+            <span>87%</span>
+            <span>•</span>
+            <span>ACTIVE</span>
+            <span>•</span>
+            <span>{new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

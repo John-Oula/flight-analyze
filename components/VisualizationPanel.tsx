@@ -1720,11 +1720,23 @@ function DataAnalysisView() {
               </div>
               <p className="text-dark-text-secondary text-sm">Interactive line plot with analysis tools</p>
             </div>
-            <div className="flex items-center space-x-3">
-              <button className="btn-primary text-sm">
-                <Database className="w-4 h-4 mr-2" />
-                Export Data
-              </button>
+                          <div className="flex items-center space-x-3">
+                <button 
+                  className="btn-secondary text-sm"
+                  onClick={() => {
+                    // Add multiple test plots to test scrolling
+                    for (let i = 0; i < 6; i++) {
+                      addPlotToTab(activeTabId, activeTab.selectedTopics.length > 0 ? activeTab.selectedTopics : ['test.plot'])
+                    }
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Test Plots
+                </button>
+                <button className="btn-primary text-sm">
+                  <Database className="w-4 h-4 mr-2" />
+                  Export Data
+                </button>
               <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
                 <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
                 <button
@@ -1822,9 +1834,9 @@ function DataAnalysisView() {
                   sidebarCollapsed ? 'ml-0' : ''
                 } ${headerCollapsed ? 'pt-1' : ''}`}>
                   {activeTab.selectedTopics.length > 0 ? (
-                    <div className="min-h-full pb-4 overflow-y-auto">
+                    <div className="pb-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                       {/* Grid Layout based on selected columns */}
-                      <div className={`grid gap-4 h-full ${
+                      <div className={`grid gap-4 ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :
                         activeTab.layoutColumns === -2 ? 'grid-rows-2' :
                         'grid-cols-1 lg:grid-cols-2'
@@ -1835,7 +1847,7 @@ function DataAnalysisView() {
                           activeTab.plots.map((plot, index) => (
                             <div 
                               key={plot.id}
-                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 h-full overflow-hidden flex flex-col ${
+                              className={`bg-dark-surface-light rounded-lg border border-dark-border p-2 min-h-[400px] overflow-hidden flex flex-col ${
                                 activeTab.layoutColumns === 2 ? 'col-span-1' :
                                 activeTab.layoutColumns === -2 ? 'row-span-1' :
                                 'col-span-1'
@@ -1909,7 +1921,7 @@ function DataAnalysisView() {
                           ))
                         ) : (
                           /* Show main plot if no individual plots exist */
-                          <div className={`h-full ${
+                          <div className={`min-h-[500px] ${
                             activeTab.layoutColumns === 2 ? 'col-span-1 lg:col-span-2' :
                             activeTab.layoutColumns === 3 ? 'col-span-1 md:col-span-2 lg:col-span-3' :
                             activeTab.layoutColumns === 4 ? 'col-span-1 md:col-span-2 row-span-2' :
@@ -1939,7 +1951,7 @@ function DataAnalysisView() {
                           activeTab.layoutColumns === 6 ? 'col-span-1' : 'col-span-1'
                         }`}>
                           <button
-                            className="w-full h-full border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
+                            className="w-full min-h-[400px] border-2 border-dashed border-dark-border rounded-lg flex flex-col items-center justify-center text-dark-text-secondary hover:text-dark-text hover:border-accent-primary transition-colors p-2"
                             onClick={() => addPlotToTab(activeTabId, activeTab.selectedTopics)}
                             title="Add new plot"
                           >

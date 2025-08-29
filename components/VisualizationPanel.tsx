@@ -1761,11 +1761,11 @@ function DataAnalysisView() {
                 </div>
 
                 {/* Plot Area */}
-                <div className={`flex-1 p-4 overflow-auto transition-all duration-300 ${
+                <div className={`h-96 p-4 overflow-y-auto transition-all duration-300 ${
                   sidebarCollapsed ? 'ml-0' : ''
                 } ${headerCollapsed ? 'pt-1' : ''}`}>
                   {activeTab.selectedTopics.length > 0 ? (
-                    <div className="h-full">
+                    <div className="min-h-full pb-4">
                       {/* Grid Layout based on selected columns */}
                       <div className={`grid gap-4 ${
                         activeTab.layoutColumns === 2 ? 'grid-cols-1 lg:grid-cols-2' :

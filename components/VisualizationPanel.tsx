@@ -55,19 +55,26 @@ import {
 const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
   const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'];
   
-  console.log('FlightDataChart data:', data); // Debug log
-  
-  // Transform Plotly data to Recharts format
+  // Transform Plotly data to Recharts format with data decimation for high-rate data
   let chartData: any[] = [];
   
   if (data && data.length > 0) {
     // Get the first trace to determine the time points
     const firstTrace = data[0];
     if (firstTrace && firstTrace.x && firstTrace.y) {
-      chartData = firstTrace.x.map((x: any, i: number) => {
+      const originalLength = firstTrace.x.length;
+      
+      // For high-rate data (>1000 points), decimate to improve performance
+      const maxPoints = 1000;
+      const step = originalLength > maxPoints ? Math.ceil(originalLength / maxPoints) : 1;
+      
+      chartData = [];
+      for (let i = 0; i < originalLength; i += step) {
+        const x = firstTrace.x[i];
         const point: any = { 
           time: x instanceof Date ? x.getTime() : x,
-          timestamp: x instanceof Date ? x.getTime() : x
+          timestamp: x instanceof Date ? x.getTime() : x,
+          index: i
         };
         
         // Add all traces to this point
@@ -77,12 +84,29 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
           }
         });
         
-        return point;
-      });
+        chartData.push(point);
+      }
+      
+      // If we decimated, add the last point to ensure we show the complete data range
+      if (step > 1 && originalLength > 0) {
+        const lastIndex = originalLength - 1;
+        const lastX = firstTrace.x[lastIndex];
+        const lastPoint: any = {
+          time: lastX instanceof Date ? lastX.getTime() : lastX,
+          timestamp: lastX instanceof Date ? lastX.getTime() : lastX,
+          index: lastIndex
+        };
+        
+        data.forEach((trace: any, traceIndex: number) => {
+          if (trace.y && trace.y[lastIndex] !== undefined) {
+            lastPoint[trace.name] = trace.y[lastIndex];
+          }
+        });
+        
+        chartData.push(lastPoint);
+      }
     }
   }
-  
-  console.log('Transformed chartData:', chartData); // Debug log
 
   // If no data, show a placeholder
   if (!chartData || chartData.length === 0) {
@@ -106,7 +130,10 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
   return (
     <div className="w-full h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <LineChart 
+          data={chartData} 
+          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis 
             dataKey="time" 
@@ -121,8 +148,13 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
               }
               return value;
             }}
+            interval="preserveStartEnd" // Only show start and end ticks for performance
           />
-          <YAxis stroke="#9CA3AF" fontSize={10} />
+          <YAxis 
+            stroke="#9CA3AF" 
+            fontSize={10}
+            domain={['dataMin - 5%', 'dataMax + 5%']} // Add padding to Y axis
+          />
           <Tooltip 
             contentStyle={{
               backgroundColor: '#1F2937',
@@ -131,6 +163,8 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
               color: '#E5E7EB'
             }}
             labelStyle={{ color: '#9CA3AF' }}
+            cursor={{ stroke: '#3B82F6', strokeWidth: 1 }}
+            isAnimationActive={false} // Disable animation for better performance
           />
           <Legend 
             wrapperStyle={{ color: '#E5E7EB', fontSize: '12px' }}
@@ -140,6 +174,8 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
             height={30} 
             stroke="#3B82F6"
             fill="#1F2937"
+            startIndex={0}
+            endIndex={Math.min(100, chartData.length - 1)} // Show first 100 points by default
           />
           {data.map((trace: any, index: number) => (
             <Line
@@ -147,9 +183,11 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
               type="monotone"
               dataKey={trace.name}
               stroke={colors[index % colors.length]}
-              strokeWidth={2}
+              strokeWidth={0.5} // Very thin lines for high-rate data
               dot={false}
-              activeDot={{ r: 4, stroke: colors[index % colors.length], strokeWidth: 2 }}
+              activeDot={{ r: 3, stroke: colors[index % colors.length], strokeWidth: 1 }}
+              isAnimationActive={false} // Disable animation for better performance
+              connectNulls={true}
             />
           ))}
         </LineChart>

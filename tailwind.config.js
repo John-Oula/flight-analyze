@@ -16,7 +16,7 @@ module.exports = {
           'bg': '#0A0A0A',
           'surface': '#1A1A1A',
           'surface-light': '#2A2A2A',
-          'border': '#333333',
+          'border': '#555555',
           'text': '#FFFFFF',
           'text-secondary': '#A0A0A0',
           'text-muted': '#666666',

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Globe, 
@@ -37,7 +37,7 @@ import {
   PanelLeft,
   PanelTop
 } from 'lucide-react'
-import {Chip} from "@heroui/chip";
+import {Chip} from "@heroui/react";
 import {
   LineChart,
   Line,
@@ -80,7 +80,18 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
         // Add all traces to this point
         data.forEach((trace: any, traceIndex: number) => {
           if (trace.y && trace.y[i] !== undefined) {
-            point[trace.name] = trace.y[i];
+            const value = trace.y[i];
+            // Filter out timestamp-like values that shouldn't be on Y-axis
+            if (typeof value === 'number') {
+              // Skip values that look like timestamps (very large numbers)
+              if (value > 1e12) {
+                console.warn('Skipping timestamp-like value on Y-axis:', value, 'for trace:', trace.name);
+                return;
+              }
+              point[trace.name] = value;
+            } else {
+              point[trace.name] = value;
+            }
           }
         });
         
@@ -99,7 +110,18 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
         
         data.forEach((trace: any, traceIndex: number) => {
           if (trace.y && trace.y[lastIndex] !== undefined) {
-            lastPoint[trace.name] = trace.y[lastIndex];
+            const value = trace.y[lastIndex];
+            // Filter out timestamp-like values that shouldn't be on Y-axis
+            if (typeof value === 'number') {
+              // Skip values that look like timestamps (very large numbers)
+              if (value > 1e12) {
+                console.warn('Skipping timestamp-like value on Y-axis:', value, 'for trace:', trace.name);
+                return;
+              }
+              lastPoint[trace.name] = value;
+            } else {
+              lastPoint[trace.name] = value;
+            }
           }
         });
         
@@ -110,20 +132,20 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
 
   // If no data, show a placeholder
   if (!chartData || chartData.length === 0) {
-    return (
+  return (
       <div className="w-full h-full flex items-center justify-center bg-dark-surface-light rounded-lg border border-dark-border">
-        <div className="text-center">
-          <BarChart3Icon className="w-16 h-16 text-dark-text-secondary mx-auto mb-4" />
+      <div className="text-center">
+        <BarChart3Icon className="w-16 h-16 text-dark-text-secondary mx-auto mb-4" />
           <h3 className="text-dark-text text-lg font-semibold mb-2">No Data Available</h3>
-          <p className="text-dark-text-secondary text-sm mb-4">
+        <p className="text-dark-text-secondary text-sm mb-4">
             {data && data.length > 0 ? 'Data format issue detected' : 'No data provided'}
-          </p>
-          <div className="text-left text-xs text-dark-text-secondary">
+        </p>
+        <div className="text-left text-xs text-dark-text-secondary">
             <p>Data traces: {data?.length || 0}</p>
             <p>Data points: {chartData?.length || 0}</p>
-          </div>
         </div>
       </div>
+    </div>
     );
   }
 
@@ -154,6 +176,22 @@ const FlightDataChart = ({ data, title }: { data: any[], title: string }) => {
             stroke="#9CA3AF" 
             fontSize={10}
             domain={['dataMin - 5%', 'dataMax + 5%']} // Add padding to Y axis
+            tickFormatter={(value) => {
+              // Format large numbers and handle edge cases
+              if (typeof value === 'number') {
+                if (Math.abs(value) > 1e6) {
+                  // For very large numbers, show in scientific notation
+                  return value.toExponential(2);
+                } else if (Math.abs(value) < 0.01 && value !== 0) {
+                  // For very small numbers, show in scientific notation
+                  return value.toExponential(2);
+                } else {
+                  // For normal numbers, show with appropriate precision
+                  return value.toFixed(3);
+                }
+              }
+              return value;
+            }}
           />
           <Tooltip 
             contentStyle={{
@@ -1747,9 +1785,9 @@ function DataAnalysisView() {
         {/* Plot Header */}
         <div className="flex-shrink-0 p-3 border-b border-dark-border">
           <div className="flex items-center justify-between">
-                        <div>
+            <div>
               <div className="flex items-center space-x-3 mb-1">
-                <h2 className="text-dark-text text-lg font-semibold">Flight Data Analysis</h2>
+              <h2 className="text-dark-text text-lg font-semibold">Flight Data Analysis</h2>
                                  {uploadedFile && (
                    <Chip size='sm' color="success" variant="shadow">
                      {uploadedFile.name}
@@ -1758,23 +1796,13 @@ function DataAnalysisView() {
               </div>
               <p className="text-dark-text-secondary text-sm">Interactive line plot with analysis tools</p>
             </div>
-                          <div className="flex items-center space-x-3">
+                         <div className="flex items-center space-x-3">
                 <button 
-                  className="btn-secondary text-sm"
-                  onClick={() => {
-                    // Add multiple test plots to test scrolling
-                    for (let i = 0; i < 6; i++) {
-                      addPlotToTab(activeTabId, activeTab.selectedTopics.length > 0 ? activeTab.selectedTopics : ['test.plot'])
-                    }
-                  }}
+                  className="p-2 rounded-lg bg-dark-surface-light hover:bg-dark-surface transition-colors text-dark-text-secondary hover:text-dark-text"
+                  title="Export Data"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Test Plots
-                </button>
-                <button className="btn-primary text-sm">
-                  <Database className="w-4 h-4 mr-2" />
-                  Export Data
-                </button>
+                  <Download className="w-4 h-4" />
+              </button>
               <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
                 <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
                 <button
@@ -2128,8 +2156,8 @@ function TelemetryView() {
   const [lastMsgTime, setLastMsgTime] = useState<number | null>(null)
   const [liveMessages, setLiveMessages] = useState<Record<string, any[]>>({})
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
-  const [plotData, setPlotData] = useState<any[]>([])
-  const [plotLayout, setPlotLayout] = useState<any>({})
+
+
   const [isDragging, setIsDragging] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(400)
 
@@ -2182,41 +2210,86 @@ function TelemetryView() {
     }
   }, [])
 
-  useEffect(() => {
-    // Build Plotly traces from selected topics
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316']
-    const traces: any[] = []
-    selectedTopics.forEach((topic, i) => {
-      const samples = liveMessages[topic] || []
-      if (samples.length === 0) return
-      const x = samples.map((s: any) => new Date(s.timestampMs ?? Date.now()))
-      const y = samples.map((s: any) => typeof s.value === 'number' ? s.value : 0)
-      traces.push({ x, y, type: 'scatter', mode: 'lines', name: topic, line: { color: colors[i % colors.length], width: 2 } })
+  // Convert live messages to plot data format for Recharts
+  const plotData = useMemo(() => {
+    if (selectedTopics.length === 0) return []
+    
+    return selectedTopics.map(topic => {
+      const messages = liveMessages[topic] || []
+      return {
+        name: topic,
+        data: messages.map(msg => ({
+          time: msg.timestampMs,
+          [topic]: msg.value
+        }))
+      }
     })
-    setPlotData(traces)
-    setPlotLayout({
-      title: { text: 'Telemetry Time Series', font: { color: '#E5E7EB', size: 18 } },
-      xaxis: { title: { text: 'Time', font: { color: '#9CA3AF' } }, gridcolor: '#374151', color: '#9CA3AF', showgrid: true, tickformat: '%H:%M:%S', type: 'date' },
-      yaxis: { title: { text: 'Value', font: { color: '#9CA3AF' } }, gridcolor: '#374151', color: '#9CA3AF', showgrid: true },
-      plot_bgcolor: '#1F2937', paper_bgcolor: '#1F2937', font: { color: '#E5E7EB' }, margin: { l: 60, r: 30, t: 60, b: 60 }, showlegend: true,
-      legend: { x: 0.02, y: 0.98, bgcolor: 'rgba(31, 41, 55, 0.8)', bordercolor: '#374151', borderwidth: 1, font: { color: '#E5E7EB' } },
-      hovermode: 'closest', dragmode: 'pan',
-    })
-  }, [selectedTopics, liveMessages])
+  }, [selectedTopics, liveMessages, lastMsgTime]) // Add lastMsgTime to trigger real-time updates
 
   const topics = Object.keys(liveMessages)
 
   return (
-    <div className="h-full w-full bg-dark-bg flex">
-      {/* Left list */}
+    <div className="h-full w-full bg-dark-bg flex flex-col">
+      {/* Header */}
+      <div className="flex-shrink-0 p-3 border-b border-dark-border">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center space-x-3 mb-1">
+              <h2 className="text-dark-text text-lg font-semibold">Live Telemetry</h2>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                connected 
+                  ? 'bg-chart-green/10 text-chart-green border border-chart-green/20' 
+                  : 'bg-chart-red/10 text-chart-red border border-chart-red/20'
+              }`}>
+                {connected ? 'CONNECTED' : 'DISCONNECTED'}
+              </span>
+            </div>
+            <p className="text-dark-text-secondary text-sm">Real-time flight data streaming</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button 
+              className="p-2 rounded-lg bg-dark-surface-light hover:bg-dark-surface transition-colors text-dark-text-secondary hover:text-dark-text"
+              title="Export Data"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <div className="flex items-center space-x-1 border-l border-dark-border pl-2">
+              <span className="text-dark-text-secondary text-xs mr-1">Layout:</span>
+              <button
+                className="flex items-center justify-center w-6 h-6 rounded transition-colors bg-accent-primary text-white"
+                title="2 column vertical split"
+              >
+                <Columns className="w-3 h-3" />
+              </button>
+              <button
+                className="flex items-center justify-center w-6 h-6 rounded transition-colors bg-dark-surface-light hover:bg-dark-surface text-dark-text-secondary hover:text-dark-text"
+                title="2 row horizontal split"
+              >
+                <PanelTop className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Sidebar */}
       <div className="flex flex-col border-r border-dark-border" style={{ width: `${sidebarWidth}px` }}>
         <div className="flex-shrink-0 p-4 border-b border-dark-border">
-          <h2 className="text-dark-text text-lg font-semibold">Telemetry</h2>
-          <p className="text-dark-text-secondary text-sm">{connected ? 'Connected (UDP via mavlink-router)' : 'Waiting for data...'}</p>
+            <div className="flex items-center space-x-2 mb-1">
+              <Database className="w-5 h-5 text-accent-primary" />
+              <h3 className="text-dark-text text-lg font-semibold">Telemetry Topics</h3>
+            </div>
+            <p className="text-dark-text-secondary text-sm">Select topics to monitor in real-time</p>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {topics.length > 0 ? topics.map((t) => (
-            <button key={t} className={`w-full text-left bg-dark-surface rounded p-2 border ${selectedTopics.includes(t) ? 'border-chart-green' : 'border-dark-border'} hover:bg-dark-surface-light`} onClick={() => setSelectedTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}>
+              <button 
+                key={t} 
+                className={`w-full text-left bg-dark-surface rounded p-2 border ${selectedTopics.includes(t) ? 'border-chart-green' : 'border-dark-border'} hover:bg-dark-surface-light transition-colors`} 
+                onClick={() => setSelectedTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
+              >
               <div className="flex items-center justify-between">
                 <span className="text-dark-text text-sm">{t}</span>
                 <span className="text-dark-text-muted text-xs">{liveMessages[t]?.length ?? 0} samples</span>
@@ -2232,13 +2305,17 @@ function TelemetryView() {
         </div>
       </div>
 
-      {/* Resize handle */}
+        {/* Resize Handle */}
       <div className="w-1 bg-dark-border hover:bg-accent-primary cursor-col-resize transition-colors" onMouseDown={handleMouseDown} style={{ cursor: isDragging ? 'col-resize' : 'col-resize' }} />
 
-      {/* Right plot */}
+        {/* Right Side - Plot Area */}
+        <div className="flex-1 flex flex-col">
       <div className="flex-1 p-4">
+            <div className="h-full bg-dark-surface rounded-lg border-2 border-dashed border-dark-border">
         {plotData.length > 0 ? (
-          <FlightDataChart data={plotData} title="Telemetry Data" />
+                <div className="h-full p-4">
+                  <FlightDataChart data={plotData} title="Live Telemetry Data" />
+                </div>
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -2248,6 +2325,9 @@ function TelemetryView() {
             </div>
           </div>
         )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

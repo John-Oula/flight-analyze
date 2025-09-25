@@ -9,6 +9,14 @@ export const siteConfig = {
       href: "/",
     },
     {
+      label: "Dashboard",
+      href: "/dashboard",
+    },
+    {
+      label: "Trajectory Analyzer",
+      href: "/trajectory",
+    },
+    {
       label: "Docs",
       href: "/docs",
     },

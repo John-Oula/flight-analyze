@@ -7,7 +7,7 @@ class TelemetryHub extends EventEmitter {
   private started = false
   private socket: dgram.Socket | null = null
 
-  start(port = 14550, host = '0.0.0.0') {
+  start(port = 14551, host = '0.0.0.0') {
     if (this.started) return
     this.started = true
     this.socket = dgram.createSocket('udp4')
@@ -352,9 +352,9 @@ const globalAny = global as any
 export const telemetryHub: TelemetryHub = globalAny.__telemetryHub || new TelemetryHub()
 if (!globalAny.__telemetryHub) {
   globalAny.__telemetryHub = telemetryHub
-  // Auto-start on import; default UDP port 14550
+  // Auto-start on import; default UDP port 14551
   try { 
-    telemetryHub.start(14550, '0.0.0.0') 
+    telemetryHub.start(14551, '0.0.0.0') 
   } catch (error) {
     // Silent error handling
   }

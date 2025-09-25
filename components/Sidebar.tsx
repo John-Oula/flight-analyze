@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Plane,
-  RadioTower
+  RadioTower,
+  Navigation
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ interface SidebarProps {
 const tabs = [
   { id: 'dashboard', label: 'DASHBOARD', icon: BarChart3 },
   { id: '3d-view', label: '3D VISUALIZATION', icon: Globe },
+  { id: 'trajectory', label: 'TRAJECTORY ANALYZER', icon: Navigation },
   { id: 'playback', label: 'FLIGHT REPLAY', icon: Play },
   { id: 'data', label: 'DATA ANALYSIS', icon: Database },
   { id: 'telemetry', label: 'TELEMETRY', icon: RadioTower },

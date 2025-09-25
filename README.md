@@ -132,7 +132,7 @@ print(f"Max altitude: {stats.max_altitude}m")
 ### Real-time Telemetry
 ```python
 # Connect to live PX4
-analyzer.connect_udp("192.168.1.100:14550")
+analyzer.connect_udp("192.168.1.100:14551")
 
 # Start real-time plotting
 analyzer.start_live_plotting()

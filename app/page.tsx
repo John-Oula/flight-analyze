@@ -141,6 +141,14 @@ export default function Home() {
 
               </div>
             </div>
+          ) : activeTab === 'trajectory' ? (
+            <div className="h-full w-full">
+              <iframe 
+                src="/trajectory" 
+                className="w-full h-full border-0"
+                title="Trajectory Analyzer"
+              />
+            </div>
           ) : (
             <VisualizationPanel activeTab={activeTab} />
           )}
